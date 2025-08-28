@@ -544,6 +544,72 @@ bool WaylandVulkanBackend::InitializeSwapchain() {
       physical_device_, surface_, &mode_count, modes.data()));
   assert(!formats.empty());  // Shouldn't be possible.
 
+  for (const auto& mode : modes) {
+    switch (mode) {
+      case VK_PRESENT_MODE_IMMEDIATE_KHR: {
+        spdlog::debug("Vulkan preferred present mode IMMEDIATE supported.");
+        if constexpr (VK_PRESENT_MODE_IMMEDIATE_KHR == kPreferredPresentMode) {
+          spdlog::debug("Vulkan preferred present mode IMMEDIATE selected.");
+        }
+        break;
+      }
+      case VK_PRESENT_MODE_MAILBOX_KHR: {
+        spdlog::debug("Vulkan preferred present mode MAILBOX supported.");
+        if constexpr (VK_PRESENT_MODE_MAILBOX_KHR == kPreferredPresentMode)
+          spdlog::debug("Vulkan preferred present mode MAILBOX selected.");
+        break;
+      }
+      case VK_PRESENT_MODE_FIFO_KHR: {
+        spdlog::debug("Vulkan preferred present mode FIFO supported.");
+        if constexpr (VK_PRESENT_MODE_FIFO_KHR == kPreferredPresentMode)
+          spdlog::debug("Vulkan preferred present mode FIFO selected.");
+        break;
+      }
+      case VK_PRESENT_MODE_FIFO_RELAXED_KHR: {
+        spdlog::debug("Vulkan preferred present mode RELAXED supported.");
+        if constexpr (VK_PRESENT_MODE_FIFO_RELAXED_KHR == kPreferredPresentMode)
+          spdlog::debug("Vulkan preferred present mode RELAXED selected.");
+        break;
+      }
+      case VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR: {
+        spdlog::debug(
+            "Vulkan preferred present mode SHARED_DEMAND_REFRESH supported.");
+        if constexpr (VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR ==
+                      kPreferredPresentMode)
+          spdlog::debug(
+              "Vulkan preferred present mode SHARED_DEMAND_REFRESH "
+              "selected.");
+        break;
+      }
+      case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR: {
+        spdlog::debug(
+            "Vulkan preferred present mode SHARED_CONTINUOUS_REFRESH "
+            "supported.");
+        if constexpr (VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR ==
+                      kPreferredPresentMode)
+          spdlog::debug(
+              "Vulkan preferred present mode SHARED_CONTINUOUS_REFRESH "
+              "selected.");
+        break;
+      }
+      case VK_PRESENT_MODE_FIFO_LATEST_READY_EXT: {
+        spdlog::debug(
+            "Vulkan preferred present mode FIFO_LATEST_READY_EXT supported.");
+        if constexpr (VK_PRESENT_MODE_FIFO_LATEST_READY_EXT ==
+                      kPreferredPresentMode)
+          spdlog::debug(
+              "Vulkan preferred present mode FIFO_LATEST_READY_EXT "
+              "selected.");
+        break;
+      }
+      default: {
+        spdlog::warn("Vulkan preferred present mode {} is not recognized.",
+                     static_cast<size_t>(mode));
+        break;
+      }
+    }
+  }
+
   // If the preferred mode isn't available, just choose the first one.
   VkPresentModeKHR present_mode = modes[0];
   for (const auto& mode : modes) {

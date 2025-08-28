@@ -600,10 +600,6 @@ void Engine::onSemanticsUpdateCallback(const FlutterSemanticsUpdate2* update,
       static_cast<FlutterDesktopEngineState*>(user_data);
 
   auto* accessibility_tree = engine_state->accessibility_tree;
-  spdlog::debug(
-      "[onSemanticsUpdateCallback] struct_size: {}, node_count: {} "
-      "custom_action_count: {}",
-      update->struct_size, update->node_count, update->custom_action_count);
 
   accessibility_tree->HandleFlutterUpdate(update);
 }

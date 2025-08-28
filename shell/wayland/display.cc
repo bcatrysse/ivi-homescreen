@@ -27,6 +27,7 @@
 #include "config/common.h"
 
 #include "engine.h"
+#include "presentation.h"
 #include "timer.h"
 
 extern void KeyCallback(FlutterDesktopViewControllerState* view_state,
@@ -261,6 +262,12 @@ void Display::registry_handle_global(void* data,
         wl_registry_bind(registry, name, &ivi_wm_interface, 1));
     ivi_wm_add_listener(d->m_ivi_shell.ivi_wm, &ivi_wm_listener, data);
     spdlog::debug("Wayland: ivi_wm version: {}", version);
+  }
+#endif
+#if HAS_WAYLAND_PROTOCOL_PRESENTATION_TIME
+  else if (strcmp(interface, wp_presentation_interface.name) == 0) {
+    Presentation::GetInstance(d->m_registry, name,
+                              std::min(static_cast<uint32_t>(1), version));
   }
 #endif
 }
@@ -869,8 +876,8 @@ bool Display::ActivateSystemCursor(const int32_t device,
                                    const std::string& kind) const {
   (void)device;
   if (!m_enable_cursor) {
-    wl_pointer_set_cursor(m_pointer.wl_pointer, m_pointer.serial,
-                          nullptr, 0, 0);
+    wl_pointer_set_cursor(m_pointer.wl_pointer, m_pointer.serial, nullptr, 0,
+                          0);
     wl_surface_damage(m_cursor_surface, 0, 0, 0, 0);
     wl_surface_commit(m_cursor_surface);
     return true;

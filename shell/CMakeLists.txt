@@ -30,6 +30,7 @@ add_executable(${PROJECT_NAME}
         view/flutter_view.cc
         watchdog.cc
         wayland/display.cc
+        wayland/presentation.cc
         wayland/window.cc
         task_runner.cc
         accessibility/accessibility_tree.cc
