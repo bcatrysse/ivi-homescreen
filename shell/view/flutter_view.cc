@@ -51,7 +51,7 @@ extern void SetUpCommonEngineState(FlutterDesktopEngineState* state,
 FlutterView::FlutterView(Configuration::Config config,
                          const size_t index,
                          const std::shared_ptr<Display>& display)
-    : m_wayland_display(display), m_config(std::move(config)), m_index(index) {
+  : m_wayland_display(display), m_config(std::move(config)), m_index(index) {
 #if BUILD_BACKEND_HEADLESS_EGL
   m_backend = std::make_shared<HeadlessBackend>(
       m_config.view.width.value_or(kDefaultViewWidth),
@@ -88,7 +88,7 @@ FlutterView::FlutterView(Configuration::Config config,
       m_config.view.pixel_ratio.value_or(kDefaultPixelRatio),
       m_config.view.activation_area_x, m_config.view.activation_area_y,
       m_config.view.activation_area_width, m_config.view.activation_area_height,
-      m_backend.get(), m_config.view.ivi_surface_id.value_or(0));
+      m_backend.get(), m_config.view.ivi_surface_id.value_or(0), this);
 
   m_state = std::make_unique<FlutterDesktopViewControllerState>();
   m_state->view = this;
@@ -155,12 +155,17 @@ void FlutterView::Initialize() {
   display.refresh_rate =
       m_wayland_display->GetRefreshRate(static_cast<uint32_t>(m_index));
   auto [width, height] = m_wayland_window->GetSize();
-  display.width = static_cast<size_t>(width);
-  display.height = static_cast<size_t>(height);
-  display.device_pixel_ratio = m_flutter_engine->GetPixelRatio();
+  auto pixel_ratio = m_flutter_engine->GetPixelRatio();
+  display.width = static_cast<size_t>(width * pixel_ratio);
+  display.height = static_cast<size_t>(height * pixel_ratio);
+  display.device_pixel_ratio = pixel_ratio;
   LibFlutterEngine->NotifyDisplayUpdate(m_flutter_engine->GetFlutterEngine(),
                                         kFlutterEngineDisplaysUpdateTypeStartup,
                                         &display, 1);
+
+  SPDLOG_DEBUG(
+      "Display metadata: {}x{} (logical) -> {}x{} (physical), pixel_ratio={}",
+      width, height, display.width, display.height, pixel_ratio);
 
   // Update for Binary Messenger
   m_state->engine_state->flutter_engine = m_flutter_engine->GetFlutterEngine();
@@ -176,6 +181,32 @@ void FlutterView::Initialize() {
   m_wayland_window->SetEngine(m_flutter_engine);
 
   SPDLOG_DEBUG("({}) Engine running...", m_index);
+}
+
+void FlutterView::UpdateDisplayMetadata() const {
+  if (!m_flutter_engine || !m_flutter_engine->IsRunning()) {
+    return;
+  }
+
+  FlutterEngineDisplay display{};
+  display.struct_size = sizeof(FlutterEngineDisplay);
+  display.display_id = 1;
+  display.single_display = true;
+  display.refresh_rate =
+      m_wayland_display->GetRefreshRate(static_cast<uint32_t>(m_index));
+  auto [width, height] = m_wayland_window->GetSize();
+  auto pixel_ratio = m_flutter_engine->GetPixelRatio();
+  display.width = static_cast<size_t>(width * pixel_ratio);
+  display.height = static_cast<size_t>(height * pixel_ratio);
+  display.device_pixel_ratio = pixel_ratio;
+
+  LibFlutterEngine->NotifyDisplayUpdate(m_flutter_engine->GetFlutterEngine(),
+                                        kFlutterEngineDisplaysUpdateTypeStartup,
+                                        &display, 1);
+
+  SPDLOG_DEBUG(
+      "Updated display metadata: {}x{} (logical) -> {}x{} (physical), pixel_ratio={}",
+      width, height, display.width, display.height, pixel_ratio);
 }
 
 void FlutterView::RunTasks() {
