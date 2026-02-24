@@ -1059,10 +1059,25 @@ double Display::GetRefreshRate(uint32_t index) const {
 }
 
 double Display::GetMaxRefreshRate() const {
-  double max_refresh_rate = 0;
+  // Fallback used when no outputs are connected or every output reports a
+  // zero/negative refresh rate (e.g. before the compositor has sent the
+  // wl_output.done event).  60 Hz is a safe, universally-supported value
+  // that prevents division-by-zero (→ IEEE 754 +inf) in App::Loop.
+
+  double max_refresh_rate = 0.0;
   for (const auto& output : m_all_outputs) {
     max_refresh_rate = std::max(max_refresh_rate, output->refresh_rate);
   }
+
+  if (max_refresh_rate <= 0.0) {
+    constexpr double kFallbackRefreshRateHz = 60.0;
+    SPDLOG_DEBUG(
+        "GetMaxRefreshRate: no valid refresh rate from {} output(s); "
+        "using fallback {} Hz",
+        m_all_outputs.size(), kFallbackRefreshRateHz);
+    return kFallbackRefreshRateHz;
+  }
+
   return max_refresh_rate;
 }
 
@@ -1102,7 +1117,7 @@ void Display::addAppToStack(std::string app_id) {
 
 int Display::find_output_by_name(std::string output_name) {
   int index = 0;
-  for (auto& i : m_all_outputs) {
+  for (const auto& i : m_all_outputs) {
     if (i->name == output_name) {
       return index;
     }
@@ -1129,18 +1144,18 @@ void Display::activateApp(std::string app_id) {
       break;
     }
 
-    iter++;
+    ++iter;
   }
 
   if (found_pending_app) {
-    auto output_name = iter->second;
+    const auto output_name = iter->second;
     default_output_index = find_output_by_name(output_name);
 
     spdlog::debug("Found app_id {} at all", app_id);
 
     if (default_output_index < 0) {
       // try with remoting-remote-X which is the streaming
-      std::string new_remote_output = "remoting-" + output_name;
+      const std::string new_remote_output = "remoting-" + output_name;
 
       default_output_index = find_output_by_name(new_remote_output);
       if (default_output_index < 0) {

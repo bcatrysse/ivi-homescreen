@@ -15,6 +15,7 @@
 
 #include "app.h"
 
+#include <cmath>
 #include <stdexcept>
 #include <thread>
 
@@ -104,13 +105,24 @@ int App::Loop() const {
 
   const auto elapsed = end_time - start_time;
 
-  const auto frame_time = 1000.0 / m_wayland_display->GetMaxRefreshRate();
-  if (const auto sleep_time = frame_time - elapsed; sleep_time > 0) {
+  // GetMaxRefreshRate() returns a positive fallback when no outputs are
+  // configured, so division-by-zero cannot occur.  The std::isfinite guard
+  // below is defence-in-depth against any future code path that could
+  // produce a zero or non-finite rate.
+  if (const auto refresh_rate = m_wayland_display->GetMaxRefreshRate();
+      std::isfinite(refresh_rate) && refresh_rate > 0.0) {
+    const auto frame_time = 1000.0 / refresh_rate;
+    if (const auto sleep_time = frame_time - static_cast<double>(elapsed);
+        sleep_time > 0.0) {
 #if BUILD_WATCHDOG
-    m_watch_dog->pet();
+      // Pet the watchdog only when the loop is on schedule.  If an iteration
+      // takes longer than one frame budget the watchdog intentionally goes
+      // un-pet so that a genuine stall is detected and reported.
+      m_watch_dog->pet();
 #endif
-    std::this_thread::sleep_for(
-        std::chrono::duration<double, std::milli>(sleep_time));
+      std::this_thread::sleep_for(
+          std::chrono::duration<double, std::milli>(sleep_time));
+    }
   }
 
   return 0;
