@@ -211,7 +211,16 @@ std::vector<Configuration::Config> Configuration::parse_config(
 
     res.emplace_back(cfg);
   }
-  assert(res.capacity() == view_count);
+  // assert(res.capacity() == view_count) was stripped in -DNDEBUG builds,
+  // silently returning an incorrectly sized vector.  Also corrected the check
+  // from capacity() (which can exceed size()) to size() — the invariant that
+  // matters is that exactly view_count configs were produced.
+  if (res.size() != view_count) {
+    throw std::logic_error(
+        fmt::format("parse_config: produced {} configs for {} bundle paths — "
+                    "internal invariant violated",
+                    res.size(), view_count));
+  }
 
   return res;
 }
