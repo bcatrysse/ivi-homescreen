@@ -954,19 +954,27 @@ void Display::StopEvents() {
 #if ENABLE_AGL_SHELL_CLIENT
 void Display::AglShellDoBackground(struct wl_surface* surface,
                                    const size_t index) const {
-  if (m_agl.shell) {
-    agl_shell_set_background(m_agl.shell, surface,
-                             m_all_outputs[index]->output);
+  if (!m_agl.shell)
+    return;
+  if (index >= m_all_outputs.size()) {
+    spdlog::error("AglShellDoBackground: output index {} out of range (size={})",
+                  index, m_all_outputs.size());
+    return;
   }
+  agl_shell_set_background(m_agl.shell, surface, m_all_outputs[index]->output);
 }
 
 void Display::AglShellDoPanel(struct wl_surface* surface,
                               const enum agl_shell_edge mode,
                               const size_t index) const {
-  if (m_agl.shell) {
-    agl_shell_set_panel(m_agl.shell, surface, m_all_outputs[index]->output,
-                        mode);
+  if (!m_agl.shell)
+    return;
+  if (index >= m_all_outputs.size()) {
+    spdlog::error("AglShellDoPanel: output index {} out of range (size={})",
+                  index, m_all_outputs.size());
+    return;
   }
+  agl_shell_set_panel(m_agl.shell, surface, m_all_outputs[index]->output, mode);
 }
 
 void Display::AglShellDoReady() const {
@@ -982,6 +990,13 @@ void Display::AglShellDoSetupActivationArea(uint32_t x,
                                             const uint32_t index) const {
   if (!m_agl.shell)
     return;
+
+  if (static_cast<size_t>(index) >= m_all_outputs.size()) {
+    spdlog::error(
+        "AglShellDoSetupActivationArea: output index {} out of range (size={})",
+        index, m_all_outputs.size());
+    return;
+  }
 
   SPDLOG_DEBUG("Using custom rectangle [{}x{}+{}x{}] for activation", width,
                height, x, y);
@@ -1192,9 +1207,19 @@ void Display::activateApp(std::string app_id) {
 
   spdlog::debug("Activating app_id {} on output {}", app_id,
                 default_output_index);
+
+  // default_output_index was checked for < 0 above; also guard against
+  // >= size() in case m_all_outputs shrank between the search and here.
+  const auto output_idx = static_cast<size_t>(default_output_index);
+  if (output_idx >= m_all_outputs.size()) {
+    spdlog::error("activateApp: output index {} out of range (size={})",
+                  output_idx, m_all_outputs.size());
+    return;
+  }
+
   agl_shell_activate_app(
       m_agl.shell, app_id.c_str(),
-      m_all_outputs[static_cast<size_t>(default_output_index)]->output);
+      m_all_outputs[output_idx]->output);
   wl_display_flush(m_display);
 }
 
