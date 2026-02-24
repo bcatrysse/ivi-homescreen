@@ -384,14 +384,28 @@ bool Engine::SendPlatformMessage(const char* channel,
   if (!m_running) {
     return false;
   }
-  FlutterPlatformMessageResponseHandle* handle;
-  LibFlutterEngine->PlatformMessageCreateResponseHandle(m_flutter_engine, reply,
-                                                        userdata, &handle);
+
+  // Create the response handle.  The Flutter engine takes ownership of the
+  // handle the moment SendPlatformMessage succeeds, so we must NOT call
+  // PlatformMessageReleaseResponseHandle after a successful send — doing so
+  // would be a double-release.  We only release it ourselves on the error
+  // paths where to send never happened.
+  FlutterPlatformMessageResponseHandle* handle = nullptr;
+  const FlutterEngineResult create_result =
+      LibFlutterEngine->PlatformMessageCreateResponseHandle(
+          m_flutter_engine, reply, userdata, &handle);
+  if (create_result != kSuccess || handle == nullptr) {
+    spdlog::error("({}) Failed to create platform message response handle",
+                  m_index);
+    return false;
+  }
 
   FlutterEngineResult result;
   if (!m_platform_task_runner->IsThreadEqual(pthread_self())) {
     auto msg =
         std::make_unique<std::vector<uint8_t>>(message, message + message_size);
+    // handle ownership is transferred into QueuePlatformMessage / the engine.
+    // Do NOT release handle after this point.
     auto f = m_platform_task_runner->QueuePlatformMessage(
         channel, std::move(msg), handle);
     f.wait();
@@ -400,13 +414,15 @@ bool Engine::SendPlatformMessage(const char* channel,
     const FlutterPlatformMessage msg{
         sizeof(FlutterPlatformMessage), channel, message, message_size, handle,
     };
-
+    // handle ownership is transferred to the engine on success.
+    // Do NOT release handle after this point.
     result = LibFlutterEngine->SendPlatformMessage(m_flutter_engine, &msg);
   }
-  if (handle != nullptr) {
-    LibFlutterEngine->PlatformMessageReleaseResponseHandle(m_flutter_engine,
-                                                           handle);
-  }
+
+  // NOTE: PlatformMessageReleaseResponseHandle is intentionally NOT called
+  // here.  Once SendPlatformMessage has been invoked the engine owns the
+  // handle and will release it when the reply callback fires or the engine
+  // shuts down.  Releasing it here would be a double-free.
 
   return result == kSuccess;
 }
