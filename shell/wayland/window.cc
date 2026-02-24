@@ -14,7 +14,12 @@
 
 #include "window.h"
 
+#include <cerrno>
+#include <chrono>
+#include <cstring>
 #include <utility>
+
+#include <poll.h>
 
 #include "display.h"
 #include "engine.h"
@@ -123,15 +128,96 @@ WaylandWindow::WaylandWindow(const size_t index,
   }
 #endif
 
-  // this makes the start-up from the beginning with the correction dimensions
-  // like starting as maximized/fullscreen, rather than starting up as floating
-  // width, height then performing a resize
-  while (m_wait_for_configure) {
-    wl_display_dispatch(m_display->GetDisplay());
+  // Wait for the compositor to send xdg_surface::configure, which ACKs the
+  // initial window geometry before we create the EGL surface.
+  //
+  // The original unbounded wl_display_dispatch() loop would hang forever if
+  // the compositor never sent the configure event (compositor crash, protocol
+  // error, buggy compositor).  We now bound the wait:
+  //
+  //  - Each iteration uses prepare_read / poll(timeout) / read_events /
+  //    dispatch_pending so that poll(2) itself has a per-iteration ceiling
+  //    (kPollTimeoutMs) rather than blocking indefinitely.
+  //  - Total elapsed wall time is measured; if kConfigureDeadlineMs is
+  //    exceeded without a configure event the loop exits with a critical log
+  //    rather than hanging the process at startup.
+  if (m_wait_for_configure) {
+    using clock = std::chrono::steady_clock;
+    using ms    = std::chrono::milliseconds;
 
-    /* wait until xdg_surface::configure ACKs the new dimensions */
-    if (m_wait_for_configure)
-      continue;
+    constexpr int     kPollTimeoutMs       = 100;
+    constexpr int64_t kConfigureDeadlineMs = 5000;
+
+    const auto deadline = clock::now() + ms(kConfigureDeadlineMs);
+    struct wl_display* wl_dpy = m_display->GetDisplay();
+    bool deadline_exceeded = false;
+
+    while (m_wait_for_configure && !deadline_exceeded) {
+      // Drain any events already in the client-side queue before blocking.
+      // prepare_read returns non-zero when there are queued events; dispatch
+      // them first so we don't miss a configure that arrived between loop
+      // iterations.
+      bool drained = false;
+      while (wl_display_prepare_read(wl_dpy) != 0) {
+        wl_display_dispatch_pending(wl_dpy);
+        if (!m_wait_for_configure) {
+          drained = true;
+          break;
+        }
+      }
+      if (drained)
+        break;
+
+      // Flush outgoing requests before blocking in poll.
+      if (wl_display_flush(wl_dpy) < 0 && errno != EAGAIN) {
+        spdlog::error("({}) WaylandWindow: wl_display_flush error while "
+                      "waiting for configure: {}", m_index, strerror(errno));
+        wl_display_cancel_read(wl_dpy);
+        break;
+      }
+
+      // Check the deadline before we block.
+      if (clock::now() >= deadline) {
+        spdlog::critical(
+            "({}) WaylandWindow: compositor did not send xdg_surface::configure"
+            " within {} ms — continuing without initial configure; window "
+            "dimensions may be incorrect",
+            m_index, kConfigureDeadlineMs);
+        wl_display_cancel_read(wl_dpy);
+        deadline_exceeded = true;
+        break;
+      }
+
+      // Block for at most kPollTimeoutMs ms waiting for compositor data.
+      const int wl_fd = wl_display_get_fd(wl_dpy);
+      struct pollfd pfd = {wl_fd, POLLIN, 0};
+      const int ready = poll(&pfd, 1, kPollTimeoutMs);
+
+      if (ready < 0) {
+        if (errno == EINTR) {
+          wl_display_cancel_read(wl_dpy);
+          continue;
+        }
+        spdlog::error("({}) WaylandWindow: poll error while waiting for "
+                      "configure: {}", m_index, strerror(errno));
+        wl_display_cancel_read(wl_dpy);
+        break;
+      }
+
+      if (ready == 0) {
+        // Timed out — no compositor data yet.
+        wl_display_cancel_read(wl_dpy);
+        const auto remaining = std::chrono::duration_cast<ms>(
+            deadline - clock::now()).count();
+        SPDLOG_TRACE("({}) WaylandWindow: waiting for xdg configure, "
+                     "{}ms remaining", m_index, remaining);
+        continue;
+      }
+
+      // Data available: read and dispatch.
+      wl_display_read_events(wl_dpy);
+      wl_display_dispatch_pending(wl_dpy);
+    }
   }
 
   m_backend->CreateSurface(m_index, m_base_surface, m_geometry.width,
