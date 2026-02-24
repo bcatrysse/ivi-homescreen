@@ -296,6 +296,16 @@ int64_t FlutterDesktopTextureRegistrarRegisterExternalTexture(
     const auto descriptor =
         callback(0, 0, texture_info->gpu_surface_config.user_data);
 
+    // The callback is user-supplied and may return nullptr to indicate that
+    // no frame is available yet.  Dereferencing a null descriptor is an
+    // immediate crash — check before any member access.
+    if (!descriptor) {
+      spdlog::error(
+          "RegisterExternalTexture: GPU surface callback returned nullptr — "
+          "no descriptor available");
+      return result;
+    }
+
     if (!descriptor->handle) {
       spdlog::critical(
           "Descriptor handle is not set.  Assign the address of the texture_id "
