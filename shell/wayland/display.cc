@@ -586,20 +586,67 @@ void Display::keyboard_handle_leave(void* data,
 
 void Display::keyboard_handle_keymap(void* data,
                                      struct wl_keyboard* /* keyboard */,
-                                     uint32_t /* format */,
+                                     uint32_t format,
                                      int fd,
                                      uint32_t size) {
   auto* d = static_cast<Display*>(data);
+
+  // Only XKB_V1 keymaps are supported.  Any other format (e.g.
+  // WL_KEYBOARD_KEYMAP_FORMAT_NO_KEYMAP) cannot be parsed by xkbcommon, so
+  // close the fd and leave the existing keymap/state untouched.
+  if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) {
+    spdlog::error("keyboard_handle_keymap: unsupported keymap format {}, "
+                  "keeping existing keymap",
+                  format);
+    close(fd);
+    return;
+  }
+
+  // A zero-length mapping is invalid (mmap(2) requires length > 0).
+  if (size == 0) {
+    spdlog::error("keyboard_handle_keymap: keymap size is 0, "
+                  "keeping existing keymap");
+    close(fd);
+    return;
+  }
+
   const auto keymap_string =
       static_cast<char*>(mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0));
-  xkb_keymap_unref(d->m_keymap);
-  d->m_keymap = xkb_keymap_new_from_string(d->m_xkb_context, keymap_string,
-                                           XKB_KEYMAP_FORMAT_TEXT_V1,
-                                           XKB_KEYMAP_COMPILE_NO_FLAGS);
+  if (keymap_string == MAP_FAILED) {
+    spdlog::error("keyboard_handle_keymap: mmap failed ({}), "
+                  "keeping existing keymap",
+                  strerror(errno));
+    close(fd);
+    return;
+  }
+
+  // Compile the new keymap before touching any existing state so that a
+  // bad keymap from the compositor cannot destroy working keyboard input.
+  xkb_keymap* new_keymap =
+      xkb_keymap_new_from_string(d->m_xkb_context, keymap_string,
+                                 XKB_KEYMAP_FORMAT_TEXT_V1,
+                                 XKB_KEYMAP_COMPILE_NO_FLAGS);
+
+  // mmap region and fd are no longer needed regardless of compile outcome.
   munmap(keymap_string, size);
   close(fd);
+
+  if (!new_keymap) {
+    spdlog::error("keyboard_handle_keymap: xkb_keymap_new_from_string failed, "
+                  "keeping existing keymap");
+    return;
+  }
+
+  // New keymap compiled successfully — replace the old keymap and rebuild
+  // the XKB state from scratch.
+  xkb_keymap_unref(d->m_keymap);
+  d->m_keymap = new_keymap;
+
   xkb_state_unref(d->m_xkb_state);
   d->m_xkb_state = xkb_state_new(d->m_keymap);
+  if (!d->m_xkb_state) {
+    spdlog::error("keyboard_handle_keymap: xkb_state_new failed");
+  }
 }
 
 void Display::keyboard_handle_key(void* data,
