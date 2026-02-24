@@ -219,7 +219,7 @@ FlutterEngineResult Engine::Run(FlutterDesktopEngineState* state) {
   result = LibFlutterEngine->RunInitialized(m_flutter_engine);
   if (result == kSuccess) {
     m_running = true;
-    SPDLOG_DEBUG("({}) Engine::m_running = {}", m_index, m_running);
+    SPDLOG_DEBUG("({}) Engine::m_running = {}", m_index, m_running.load());
   }
 
   // Set available system locales
