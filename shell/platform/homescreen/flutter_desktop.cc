@@ -363,12 +363,16 @@ void FlutterDesktopTextureRegistrarUnregisterExternalTexture(
   std::scoped_lock<std::mutex> lock(texture_mutex);
   LibFlutterEngine->UnregisterExternalTexture(
       texture_registrar->engine->flutter_engine, texture_id);
-  if (const auto& val = texture_registrar->texture_registry[texture_id];
-      val && val->release_callback != nullptr) {
-    val->release_callback(val->release_context);
+  // Use find() rather than operator[] — operator[] inserts a default-
+  // constructed (null) unique_ptr for unknown keys, silently growing the map
+  // with garbage entries and corrupting resource-accounting.
+  if (const auto it = texture_registrar->texture_registry.find(texture_id);
+      it != texture_registrar->texture_registry.end()) {
+    if (it->second && it->second->release_callback != nullptr) {
+      it->second->release_callback(it->second->release_context);
+    }
+    texture_registrar->texture_registry.erase(it);
   }
-  texture_registrar->texture_registry[texture_id].reset();
-  texture_registrar->texture_registry.erase(texture_id);
   if (callback != nullptr) {
     callback(user_data);
   }
