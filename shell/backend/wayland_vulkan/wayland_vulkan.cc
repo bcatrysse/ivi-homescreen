@@ -831,17 +831,19 @@ void WaylandVulkanBackend::CreateSurface(size_t /* index */,
 
   VkFenceCreateInfo f_info{};
   f_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-  d.vkCreateFence(device_, &f_info, nullptr, &image_ready_fence_);
+  CHECK_VK_RESULT(
+      d.vkCreateFence(device_, &f_info, nullptr, &image_ready_fence_));
 
   VkSemaphoreCreateInfo s_info{};
   s_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-  d.vkCreateSemaphore(device_, &s_info, nullptr,
-                      &present_transition_semaphore_);
+  CHECK_VK_RESULT(d.vkCreateSemaphore(device_, &s_info, nullptr,
+                                      &present_transition_semaphore_));
 
   VkCommandPoolCreateInfo pool_info{};
   pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   pool_info.queueFamilyIndex = queue_family_index_;
-  d.vkCreateCommandPool(device_, &pool_info, nullptr, &swapchain_command_pool_);
+  CHECK_VK_RESULT(d.vkCreateCommandPool(device_, &pool_info, nullptr,
+                                        &swapchain_command_pool_));
 
   if (!InitializeSwapChain()) {
     spdlog::critical("Failed to create swap chain.");

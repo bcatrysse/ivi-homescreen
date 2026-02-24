@@ -360,7 +360,6 @@ bool Engine::SendPlatformMessage(
   if (!m_platform_task_runner->IsThreadEqual(pthread_self())) {
     auto f = m_platform_task_runner->QueuePlatformMessage(channel,
                                                           std::move(message));
-    f.wait();
     result = f.get();
   } else {
     const FlutterPlatformMessage msg{sizeof(FlutterPlatformMessage), channel,
@@ -385,7 +384,6 @@ bool Engine::SendPlatformMessage(const char* channel,
         std::make_unique<std::vector<uint8_t>>(message, message + message_size);
     auto f =
         m_platform_task_runner->QueuePlatformMessage(channel, std::move(msg));
-    f.wait();
     result = f.get();
   } else {
     const FlutterPlatformMessage msg{sizeof(FlutterPlatformMessage), channel,
@@ -427,7 +425,6 @@ bool Engine::SendPlatformMessage(const char* channel,
     // Do NOT release handle after this point.
     auto f = m_platform_task_runner->QueuePlatformMessage(
         channel, std::move(msg), handle);
-    f.wait();
     result = f.get();
   } else {
     const FlutterPlatformMessage msg{
