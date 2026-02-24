@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <filesystem>
 #include <map>
 #include <memory>
@@ -346,7 +347,10 @@ class Engine {
 
  private:
   size_t m_index;
-  bool m_running;
+  // Written once in Run() on the main thread; read from plugin threads,
+  // the platform task-runner thread, and the destructor.  std::atomic<bool>
+  // provides the required inter-thread visibility without a mutex.
+  std::atomic<bool> m_running;
 
   Backend* m_backend;
   std::shared_ptr<WaylandWindow> m_egl_window;
