@@ -44,9 +44,18 @@ class WaylandEglBackend : public Egl, public Backend {
                     int buffer_size = kEglBufferSize);
 
   /**
+   * @brief Destructor — destroys the EGL surface and wl_egl_window handle.
+   *
+   * The EGL surface must be destroyed before eglTerminate (called by the Egl
+   * base destructor), and the wl_egl_window must be destroyed after the EGL
+   * surface that is backed by it.
+   */
+  ~WaylandEglBackend() override;
+
+  /**
    * @brief Resize Flutter engine Window size
    * @param[in] index No use
-   * @param[in] engine Pointer to Flutter engine
+   * @param[in] flutter_engine Pointer to Flutter engine
    * @param[in] width Set window width
    * @param[in] height Set window height
    * @return void

@@ -35,6 +35,22 @@ WaylandEglBackend::WaylandEglBackend(struct wl_display* display,
       m_initial_width(initial_width),
       m_initial_height(initial_height) {}
 
+WaylandEglBackend::~WaylandEglBackend() {
+  // Destroy the EGL surface before the wl_egl_window it is backed by, and
+  // before the Egl base destructor calls eglTerminate — eglTerminate with a
+  // live surface attached is undefined behavior on some drivers.
+  if (m_egl_surface != EGL_NO_SURFACE) {
+    eglDestroySurface(GetDisplay(), m_egl_surface);
+    m_egl_surface = EGL_NO_SURFACE;
+  }
+  // Destroy the Wayland EGL window after the EGL surface, since the surface
+  // holds a reference to the native window underneath.
+  if (m_egl_window) {
+    wl_egl_window_destroy(m_egl_window);
+    m_egl_window = nullptr;
+  }
+}
+
 FlutterRendererConfig WaylandEglBackend::GetRenderConfig() {
   FlutterRendererConfig config{};
   config.type = kOpenGL;
