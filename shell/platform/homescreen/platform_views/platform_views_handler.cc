@@ -116,6 +116,11 @@ void PlatformViewsHandler::HandleMethodCall(
     double height = 0;
 
     const auto args = std::get_if<flutter::EncodableMap>(arguments);
+    if (args == nullptr) {
+      result->Error("invalid_args",
+                    "resize: arguments must be an EncodableMap");
+      return;
+    }
     for (const auto& [fst, snd] : *args) {
       if (kKeyId == std::get<std::string>(fst) &&
           std::holds_alternative<int32_t>(snd)) {
@@ -154,6 +159,11 @@ void PlatformViewsHandler::HandleMethodCall(
     int32_t id = 0;
     int32_t direction = 0;
     const auto args = std::get_if<flutter::EncodableMap>(arguments);
+    if (args == nullptr) {
+      result->Error("invalid_args",
+                    "setDirection: arguments must be an EncodableMap");
+      return;
+    }
     for (const auto& [fst, snd] : *args) {
       if (kKeyId == std::get<std::string>(fst) &&
           std::holds_alternative<int32_t>(snd)) {
@@ -188,6 +198,11 @@ void PlatformViewsHandler::HandleMethodCall(
     double left = 0;
     double top = 0;
     const auto args = std::get_if<flutter::EncodableMap>(arguments);
+    if (args == nullptr) {
+      result->Error("invalid_args",
+                    "offset: arguments must be an EncodableMap");
+      return;
+    }
     for (const auto& [fst, snd] : *args) {
       if (kKeyId == std::get<std::string>(fst) &&
           std::holds_alternative<int32_t>(snd)) {
@@ -218,6 +233,11 @@ void PlatformViewsHandler::HandleMethodCall(
 
     /// The user touched a platform view within Flutter.
     const auto& params = std::get_if<flutter::EncodableList>(arguments);
+    if (params == nullptr) {
+      result->Error("invalid_args",
+                    "touch: arguments must be an EncodableList");
+      return;
+    }
     const auto touch = PlatformViewTouch(*params);
     SPDLOG_TRACE("PlatformViewTouch id: {}", touch.getId());
     if (const auto id = touch.getId();
@@ -238,6 +258,11 @@ void PlatformViewsHandler::HandleMethodCall(
 
     int32_t id = 0;
     const auto args = std::get_if<flutter::EncodableMap>(arguments);
+    if (args == nullptr) {
+      result->Error("invalid_args",
+                    "acceptGesture: arguments must be an EncodableMap");
+      return;
+    }
     for (const auto& [fst, snd] : *args) {
       if (kKeyId == std::get<std::string>(fst) &&
           std::holds_alternative<int32_t>(snd)) {
@@ -261,6 +286,11 @@ void PlatformViewsHandler::HandleMethodCall(
     }
     int32_t id = 0;
     const auto args = std::get_if<flutter::EncodableMap>(arguments);
+    if (args == nullptr) {
+      result->Error("invalid_args",
+                    "rejectGesture: arguments must be an EncodableMap");
+      return;
+    }
     for (const auto& [fst, snd] : *args) {
       if (kKeyId == std::get<std::string>(fst) &&
           std::holds_alternative<int32_t>(snd)) {
