@@ -232,10 +232,8 @@ FlutterEngineResult Engine::SetWindowSize(const size_t height,
     return kInternalInconsistency;
   }
 
-  m_prev_height = height;
-  m_prev_width = width;
-
-  // Set window size
+  // Build the event using the candidate values; do NOT update cached state
+  // yet — we only commit the new dimensions once the engine has accepted them.
   const FlutterWindowMetricsEvent fwme = {
       .struct_size = sizeof(FlutterWindowMetricsEvent),
       .width = width,
@@ -250,12 +248,17 @@ FlutterEngineResult Engine::SetWindowSize(const size_t height,
       .display_id = 0,  // TODO display index
       .view_id = static_cast<int64_t>(m_index)};
 
-  if (LibFlutterEngine->SendWindowMetricsEvent(m_flutter_engine, &fwme) !=
-      kSuccess) {
-    spdlog::critical("({}) Failed send initial window size to flutter",
-                     m_index);
-    assert(false);
+  const auto result =
+      LibFlutterEngine->SendWindowMetricsEvent(m_flutter_engine, &fwme);
+  if (result != kSuccess) {
+    spdlog::critical("({}) Failed to send window size to flutter ({}x{})",
+                     m_index, width, height);
+    return result;
   }
+
+  // Commit cached state only after a confirmed successful send.
+  m_prev_height = height;
+  m_prev_width = width;
 
   return kSuccess;
 }
@@ -265,12 +268,19 @@ FlutterEngineResult Engine::SetPixelRatio(double pixel_ratio) {
     return kInternalInconsistency;
   }
 
-  assert(m_prev_width);
-  assert(m_prev_height);
+  // m_prev_width / m_prev_height must have been set by a prior successful
+  // SetWindowSize call.  Treat zeroes as an explicit programming error rather
+  // than silently sending a degenerate metrics event.
+  if (m_prev_width == 0 || m_prev_height == 0) {
+    spdlog::error(
+        "({}) SetPixelRatio called before window size was established "
+        "(width={}, height={})",
+        m_index, m_prev_width, m_prev_height);
+    return kInternalInconsistency;
+  }
 
-  m_prev_pixel_ratio = pixel_ratio;
-
-  // Set window size
+  // Build the event with the candidate pixel ratio; do NOT commit it to cached
+  // state until the engine has accepted the event.
   const FlutterWindowMetricsEvent fwme = {
       .struct_size = sizeof(FlutterWindowMetricsEvent),
       .width = m_prev_width,
@@ -288,12 +298,16 @@ FlutterEngineResult Engine::SetPixelRatio(double pixel_ratio) {
   const auto result =
       LibFlutterEngine->SendWindowMetricsEvent(m_flutter_engine, &fwme);
   if (result != kSuccess) {
-    spdlog::critical("({}) Failed send initial window size to flutter",
-                     m_index);
-    assert(false);
+    spdlog::critical(
+        "({}) Failed to send pixel ratio to flutter (ratio={})",
+        m_index, pixel_ratio);
+    return result;
   }
 
-  SPDLOG_TRACE("({}) SetWindowSize: width={}, height={}, pixel_ratio={}",
+  // Commit cached state only after a confirmed successful send.
+  m_prev_pixel_ratio = pixel_ratio;
+
+  SPDLOG_TRACE("({}) SetPixelRatio: width={}, height={}, pixel_ratio={}",
                m_index, m_prev_width, m_prev_height, pixel_ratio);
   return kSuccess;
 }
