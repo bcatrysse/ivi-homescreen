@@ -320,12 +320,12 @@ void PlatformViewsHandler::PlatformViewAddListener(
     const int32_t id,
     const platform_view_listener* listener,
     void* listener_context) {
-  if (const auto platformView = static_cast<PlatformViewsHandler*>(context);
-      platformView->listeners_.find(id) != platformView->listeners_.end()) {
-    platformView->listeners_.erase(id);
-  } else {
-    platformView->listeners_[id] = std::make_pair(listener, listener_context);
-  }
+  const auto platformView = static_cast<PlatformViewsHandler*>(context);
+  // Use operator[] to upsert: inserts a new entry when id is absent, and
+  // replaces the existing entry when id is already registered.  The previous
+  // if/else had the branches swapped — it erased on find (removing a valid
+  // listener on re-registration) and only inserted when not found.
+  platformView->listeners_[id] = std::make_pair(listener, listener_context);
 }
 
 void PlatformViewsHandler::PlatformViewRemoveListener(void* context,
