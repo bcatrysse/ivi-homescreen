@@ -169,7 +169,12 @@ Engine::~Engine() {
     LibFlutterEngine->Deinitialize(m_flutter_engine);
     LibFlutterEngine->Shutdown(m_flutter_engine);
     if (m_aot_data) {
-      LibFlutterEngine->CollectAOTData(m_aot_data);
+      if (LibFlutterEngine->CollectAOTData) {
+        LibFlutterEngine->CollectAOTData(m_aot_data);
+      } else {
+        spdlog::error("({}) CollectAOTData function pointer is null — "
+                      "AOT data will not be released", m_index);
+      }
     }
   }
   m_platform_task_runner.reset();
@@ -582,6 +587,12 @@ FlutterEngineAOTData Engine::LoadAotData(const std::string& bundle_path) const {
   source.elf_path = aot_data_path.c_str();
 
   FlutterEngineAOTData data;
+  if (!LibFlutterEngine->CreateAOTData) {
+    spdlog::critical("({}) CreateAOTData function pointer is null — "
+                     "cannot load AOT data from: {}", m_index,
+                     aot_data_path.c_str());
+    return nullptr;
+  }
   if (kSuccess != LibFlutterEngine->CreateAOTData(&source, &data)) {
     spdlog::critical("({}) Failed to load AOT data from: {}", m_index,
                      aot_data_path.c_str());
