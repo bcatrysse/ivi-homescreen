@@ -16,7 +16,7 @@
 
 #include "egl.h"
 
-#include <cassert>
+#include <stdexcept>
 #include <cstring>
 #include <sstream>
 
@@ -27,14 +27,30 @@
 Egl::Egl(void* native_display, const int buffer_size, const bool debug)
     : m_buffer_size(buffer_size),
       m_dpy(eglGetDisplay(static_cast<EGLNativeDisplayType>(native_display))) {
-  assert(m_dpy);
+  // throw instead of assert(): assert is stripped in -DNDEBUG builds, leaving
+  // m_dpy == EGL_NO_DISPLAY and every subsequent EGL call returning
+  // EGL_BAD_DISPLAY silently.  The exception propagates cleanly in all
+  // build configurations and includes the EGL error code for diagnosis.
+  if (m_dpy == EGL_NO_DISPLAY) {
+    throw std::logic_error(
+        fmt::format("Egl: eglGetDisplay failed — EGL error 0x{:x}",
+                    eglGetError()));
+  }
 
   EGLBoolean ret = eglInitialize(m_dpy, &m_major, &m_minor);
-  assert(ret == EGL_TRUE);
+  if (ret != EGL_TRUE) {
+    throw std::logic_error(
+        fmt::format("Egl: eglInitialize failed — EGL error 0x{:x}",
+                    eglGetError()));
+  }
   SPDLOG_DEBUG("EGL {}.{}", m_major, m_minor);
 
   ret = eglBindAPI(EGL_OPENGL_ES_API);
-  assert(ret == EGL_TRUE);
+  if (ret != EGL_TRUE) {
+    throw std::logic_error(
+        fmt::format("Egl: eglBindAPI(EGL_OPENGL_ES_API) failed — "
+                    "EGL error 0x{:x}", eglGetError()));
+  }
 
   if (debug) {
     ReportGlesAttributes();
@@ -806,7 +822,15 @@ void Egl::EGL_KHR_debug_init(const char* extensions) {
     const auto pfDebugMessageControl =
         reinterpret_cast<PFNEGLDEBUGMESSAGECONTROLKHRPROC>(
             eglGetProcAddress("eglDebugMessageControlKHR"));
-    assert(pfDebugMessageControl);
+    // assert(pfDebugMessageControl) was stripped in release builds, then the
+    // null pointer was called on the next line — UB / crash.  Guard explicitly:
+    // a missing proc despite EGL_KHR_debug being advertised is a driver bug;
+    // log a warning and skip rather than crashing.
+    if (!pfDebugMessageControl) {
+      spdlog::warn("EGL_KHR_debug_init: eglGetProcAddress returned null for "
+                   "eglDebugMessageControlKHR — EGL debug messaging disabled");
+      return;
+    }
 
     const EGLAttrib sDebugAttribList[] = {EGL_DEBUG_MSG_CRITICAL_KHR,
                                           EGL_TRUE,
