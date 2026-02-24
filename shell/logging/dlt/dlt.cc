@@ -70,11 +70,12 @@ bool Dlt::Unregister() {
 }
 
 [[maybe_unused]]
-void Dlt::LogString(DltLogLevelType log_level, const char* buff) {
+void Dlt::LogString(const DltLogLevelType log_level, const char* buff) {
   if (gContextSet) {
     DltContextData log_local;
-    auto res = LibDlt->UserLogWriteStart(&gContext, &log_local, log_level);
-    if (res == DltReturnValue::True) {
+    if (const auto res =
+            LibDlt->UserLogWriteStart(&gContext, &log_local, log_level);
+        res == DltReturnValue::True) {
       (void)LibDlt->UserLogWriteString(&log_local, buff);
       (void)LibDlt->UserLogWriteFinish(&log_local);
     }
@@ -89,15 +90,16 @@ void Dlt::LogString(DltLogLevelType log_level, const char* buff) {
 }
 
 [[maybe_unused]]
-void Dlt::LogSizedString(DltLogLevelType log_level,
+void Dlt::LogSizedString(const DltLogLevelType log_level,
                          const char* buff,
-                         uint16_t length) {
+                         const uint16_t length) {
   if (gContextSet && length == 0) {
     LogString(log_level, buff);
   } else if (gContextSet && length) {
     DltContextData log_local;
-    auto res = LibDlt->UserLogWriteStart(&gContext, &log_local, log_level);
-    if (res == DltReturnValue::True) {
+    if (const auto res =
+            LibDlt->UserLogWriteStart(&gContext, &log_local, log_level);
+        res == DltReturnValue::True) {
       (void)LibDlt->UserLogWriteSizedUtf8String(&log_local, buff, length);
       (void)LibDlt->UserLogWriteFinish(&log_local);
     }

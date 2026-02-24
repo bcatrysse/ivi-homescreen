@@ -103,7 +103,7 @@ class LibDlt {
  public:
   static bool IsPresent() { return loadExports() != nullptr; }
 
-  LibDltExports* operator->();
+  LibDltExports* operator->() const;
 
  private:
   static LibDltExports* loadExports();
