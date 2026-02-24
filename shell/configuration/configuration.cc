@@ -16,6 +16,8 @@
 #include "configuration.h"
 
 #include <filesystem>
+#include <stdexcept>
+#include <string>
 
 #include "config/common.h"
 #include "cxxopts/include/cxxopts.hpp"
@@ -106,8 +108,18 @@ void Configuration::get_toml_config(const char* config_toml_path,
 
   auto result = toml::parse_file(config_toml_path);
   if (!result) {
-    spdlog::error("TOML parsing failed: {}", config_toml_path);
-    exit(EXIT_FAILURE);
+    const auto& err = result.error();
+    // Throw rather than exit() so that:
+    //  1. C++ destructors run and resources are released.
+    //  2. The caller (ParseArgcArgv) can catch, log, and terminate cleanly
+    //     through its existing error-handling path.
+    //  3. Unit tests or alternative call-sites can handle the error without
+    //     the process being unconditionally killed.
+    throw std::runtime_error(
+        std::string("TOML parse error in '") + config_toml_path + "': " +
+        std::string(err.description()) + " (line " +
+        std::to_string(err.source().begin.line) + ", column " +
+        std::to_string(err.source().begin.column) + ")");
   }
 
   auto tbl = result.table();
@@ -421,7 +433,19 @@ std::vector<Configuration::Config> Configuration::ParseArgcArgv(
     exit(EXIT_FAILURE);
   }
 
-  auto configs = parse_config(config);
+  auto configs = [&] {
+    try {
+      return parse_config(config);
+    } catch (const std::runtime_error& e) {
+      // get_toml_config throws std::runtime_error when a config.toml exists
+      // but cannot be parsed.  Log the full message (path, line, column) and
+      // exit cleanly from this single controlled top-level point so that all
+      // C++ destructors constructed above (gLogger, cxxopts, etc.) still run
+      // via stack unwinding before the catch, and spdlog is safe to call here.
+      spdlog::critical("Configuration error: {}", e.what());
+      exit(EXIT_FAILURE);
+    }
+  }();
 
   if (!config.view.fullscreen) {
     if (config.view.width == 0) {

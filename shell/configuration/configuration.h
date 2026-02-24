@@ -100,6 +100,7 @@ class Configuration {
    * @param[in] config_toml_path path of config.toml file
    * @param[in,out] instance View config
    * @return void
+   * @throws std::runtime_error if the file exists but cannot be parsed as TOML
    * @relation
    * internal
    */
