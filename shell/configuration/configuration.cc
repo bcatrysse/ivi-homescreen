@@ -433,6 +433,23 @@ std::vector<Configuration::Config> Configuration::ParseArgcArgv(
     exit(EXIT_FAILURE);
   }
 
+  // Validate width/height before parse_config so we never build per-view
+  // configs from dimensions that we are about to reject.  The check is on
+  // the raw CLI config (before TOML defaults are applied), which is exactly
+  // the right place: if the user did not supply -w/-h and is not in
+  // fullscreen mode, that is a CLI usage error and should be caught here.
+  if (!config.view.fullscreen.value_or(false)) {
+    if (!config.view.width.has_value() || config.view.width.value() == 0) {
+      spdlog::critical("-w option (Width) requires an argument (e.g. -w 720)");
+      exit(EXIT_FAILURE);
+    }
+    if (!config.view.height.has_value() || config.view.height.value() == 0) {
+      spdlog::critical(
+          "-h option (Height) requires an argument (e.g. -h 1280)");
+      exit(EXIT_FAILURE);
+    }
+  }
+
   auto configs = [&] {
     try {
       return parse_config(config);
@@ -447,17 +464,6 @@ std::vector<Configuration::Config> Configuration::ParseArgcArgv(
     }
   }();
 
-  if (!config.view.fullscreen) {
-    if (config.view.width == 0) {
-      spdlog::critical("-w option (Width) requires an argument (e.g. -w 720)");
-      exit(EXIT_FAILURE);
-    }
-    if (config.view.height == 0) {
-      spdlog::critical(
-          "-h option (Height) requires an argument (e.g. -w 1280)");
-      exit(EXIT_FAILURE);
-    }
-  }
 
   for (auto const& c : configs) {
     PrintConfig(c);
