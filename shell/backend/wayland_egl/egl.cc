@@ -185,9 +185,13 @@ Egl::~Egl() {
 bool Egl::MakeCurrent() const {
   SPDLOG_TRACE("+MakeCurrent(), thread_id=0x{:x}", pthread_self());
   if (eglGetCurrentContext() != m_context) {
-    eglMakeCurrent(m_dpy, m_egl_surface, m_egl_surface, m_context);
+    if (eglMakeCurrent(m_dpy, m_egl_surface, m_egl_surface, m_context) !=
+        EGL_TRUE) {
+      spdlog::error("MakeCurrent: eglMakeCurrent failed: 0x{:x}",
+                    eglGetError());
+      return false;
+    }
     SPDLOG_TRACE("EGL Context={}", eglGetCurrentContext());
-    assert(m_context == eglGetCurrentContext());
   }
   SPDLOG_TRACE("-MakeCurrent()");
   return true;
@@ -196,7 +200,12 @@ bool Egl::MakeCurrent() const {
 bool Egl::ClearCurrent() const {
   SPDLOG_TRACE("+ClearCurrent(), thread_id=0x{:x}", pthread_self());
   if (eglGetCurrentContext() != EGL_NO_CONTEXT) {
-    eglMakeCurrent(m_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    if (eglMakeCurrent(m_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE,
+                       EGL_NO_CONTEXT) != EGL_TRUE) {
+      spdlog::error("ClearCurrent: eglMakeCurrent failed: 0x{:x}",
+                    eglGetError());
+      return false;
+    }
     SPDLOG_TRACE("EGL Context={}, thread_id=0x{:x}", eglGetCurrentContext(),
                  pthread_self());
   }
@@ -206,18 +215,27 @@ bool Egl::ClearCurrent() const {
 
 bool Egl::SwapBuffers() const {
   SPDLOG_TRACE("+SwapBuffers(): thread_id=0x{:x}", pthread_self());
-  eglSwapBuffers(m_dpy, m_egl_surface);
+  if (eglSwapBuffers(m_dpy, m_egl_surface) != EGL_TRUE) {
+    spdlog::error("SwapBuffers: eglSwapBuffers failed: 0x{:x}", eglGetError());
+    return false;
+  }
   SPDLOG_TRACE("-SwapBuffers()");
   return true;
 }
 
 bool Egl::MakeResourceCurrent() const {
   SPDLOG_TRACE("+MakeResourceCurrent(), thread_id=0x{:x}", pthread_self());
-  if (eglGetCurrentContext() != m_context) {
-    eglMakeCurrent(m_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, m_resource_context);
+  // Guard against m_resource_context, not m_context — each context function
+  // must check whether its own target context is already current.
+  if (eglGetCurrentContext() != m_resource_context) {
+    if (eglMakeCurrent(m_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE,
+                       m_resource_context) != EGL_TRUE) {
+      spdlog::error("MakeResourceCurrent: eglMakeCurrent failed: 0x{:x}",
+                    eglGetError());
+      return false;
+    }
     SPDLOG_TRACE("EGL Context={}, thread_id=0x{:x}", eglGetCurrentContext(),
                  pthread_self());
-    assert(m_resource_context == eglGetCurrentContext());
   }
   SPDLOG_TRACE("-MakeResourceCurrent()");
   return true;
@@ -226,10 +244,14 @@ bool Egl::MakeResourceCurrent() const {
 bool Egl::MakeTextureCurrent() const {
   SPDLOG_TRACE("+MakeTextureCurrent(), thread_id=0x{:x}", pthread_self());
   if (eglGetCurrentContext() != m_texture_context) {
-    eglMakeCurrent(m_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, m_texture_context);
+    if (eglMakeCurrent(m_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE,
+                       m_texture_context) != EGL_TRUE) {
+      spdlog::error("MakeTextureCurrent: eglMakeCurrent failed: 0x{:x}",
+                    eglGetError());
+      return false;
+    }
     SPDLOG_TRACE("EGL Context={}, thread_id=0x{:x}", eglGetCurrentContext(),
                  pthread_self());
-    assert(m_texture_context == eglGetCurrentContext());
   }
   SPDLOG_TRACE("-MakeTextureCurrent()");
   return true;
