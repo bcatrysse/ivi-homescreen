@@ -106,11 +106,10 @@ FlutterRendererConfig WaylandEglBackend::GetRenderConfig() {
       return b->SwapBuffers();
     }
 
-    // Free the existing damage that was allocated to this frame.
-    if (b->m_existing_damage_map[info->fbo_id] != nullptr) {
-      free(b->m_existing_damage_map[info->fbo_id]);
-      b->m_existing_damage_map[info->fbo_id] = nullptr;
-    }
+    // Release the existing damage array allocated for this FBO.
+    // erase() triggers the unique_ptr destructor which deletes[] the array —
+    // no manual free() required and no null-entry left in the map.
+    b->m_existing_damage_map.erase(info->fbo_id);
 
     if (b->GetSetDamageRegion()) {
       // Set the buffer damage as the damage region.
@@ -159,12 +158,17 @@ FlutterRendererConfig WaylandEglBackend::GetRenderConfig() {
     existing_damage->num_rects = 1;
 
     // Allocate the array of rectangles for the existing damage.
-    b->m_existing_damage_map[fbo_id] = static_cast<FlutterRect*>(
-        malloc(sizeof(FlutterRect) * existing_damage->num_rects));
-    b->m_existing_damage_map[fbo_id][0] =
-        FlutterRect{0, 0, static_cast<double>(b->m_initial_width),
-                    static_cast<double>(b->m_initial_height)};
-    existing_damage->damage = b->m_existing_damage_map[fbo_id];
+    // make_unique<FlutterRect[]> is exception-safe and ownership is held by
+    // the map entry.  If fbo_id was already present (e.g. Flutter called
+    // populate_existing_damage twice before present_with_info), the old
+    // unique_ptr is automatically deleted on overwrite — no leak.
+    auto rects = std::make_unique<FlutterRect[]>(existing_damage->num_rects);
+    rects[0] = FlutterRect{0, 0, static_cast<double>(b->m_initial_width),
+                           static_cast<double>(b->m_initial_height)};
+    // Store ownership in the map; hand a non-owning view to Flutter.
+    // Flutter reads through this pointer during the frame and never frees it.
+    b->m_existing_damage_map[fbo_id] = std::move(rects);
+    existing_damage->damage = b->m_existing_damage_map[fbo_id].get();
 
     if (age > 1) {
       --age;

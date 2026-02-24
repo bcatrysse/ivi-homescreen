@@ -17,6 +17,7 @@
 #pragma once
 
 #include <list>
+#include <memory>
 #include <unordered_map>
 
 #include <wayland-egl.h>
@@ -104,8 +105,12 @@ class WaylandEglBackend : public Egl, public Backend {
   uint32_t m_initial_width;
   uint32_t m_initial_height;
 
-  // Keeps track of the existing damage associated with each FBO ID
-  std::unordered_map<intptr_t, FlutterRect*> m_existing_damage_map;
+  // Keeps track of the existing damage associated with each FBO ID.
+  // unique_ptr<FlutterRect[]> owns the array and deletes it automatically when
+  // the entry is erased, overwritten, or the map is destroyed — no manual
+  // malloc/free required and no leak on exception or early return.
+  std::unordered_map<intptr_t, std::unique_ptr<FlutterRect[]>>
+      m_existing_damage_map;
 
   // Keeps track of the most recent frame damages so that existing damage can
   // be easily computed.
