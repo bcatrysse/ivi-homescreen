@@ -27,7 +27,7 @@
 #include <shell/platform/embedder/embedder.h>
 #include <wayland-client.h>
 #include <wayland-cursor.h>
-#include <cassert>
+#include <stdexcept>
 
 #include "config/common.h"
 #include "configuration/configuration.h"
@@ -64,7 +64,11 @@ class Display {
    * wayland
    */
   [[nodiscard]] wl_compositor* GetCompositor() const {
-    assert(m_compositor);
+    if (!m_compositor) {
+      throw std::logic_error(
+          "Display::GetCompositor: wl_compositor global is null — "
+          "the compositor did not advertise wl_compositor");
+    }
     return m_compositor;
   };
 
@@ -76,7 +80,11 @@ class Display {
    * wayland
    */
   [[nodiscard]] wl_subcompositor* GetSubCompositor() const {
-    assert(m_subcompositor);
+    if (!m_subcompositor) {
+      throw std::logic_error(
+          "Display::GetSubCompositor: wl_subcompositor global is null — "
+          "the compositor did not advertise wl_subcompositor");
+    }
     return m_subcompositor;
   };
 
@@ -88,7 +96,11 @@ class Display {
    * wayland
    */
   [[nodiscard]] wl_display* GetDisplay() const {
-    assert(m_display);
+    if (!m_display) {
+      throw std::logic_error(
+          "Display::GetDisplay: wl_display is null — "
+          "wl_display_connect failed or the display was already disconnected");
+    }
     return m_display;
   }
 
@@ -101,7 +113,11 @@ class Display {
    */
 #if ENABLE_XDG_CLIENT
   [[nodiscard]] xdg_wm_base* GetXdgWmBase() const {
-    assert(m_xdg_wm_base);
+    if (!m_xdg_wm_base) {
+      throw std::logic_error(
+          "Display::GetXdgWmBase: xdg_wm_base global is null — "
+          "the compositor did not advertise xdg_wm_base");
+    }
     return m_xdg_wm_base;
   }
 #endif
@@ -127,7 +143,11 @@ class Display {
    * wayland
    */
   [[nodiscard]] wl_shm* GetShm() const {
-    assert(m_shm);
+    if (!m_shm) {
+      throw std::logic_error(
+          "Display::GetShm: wl_shm global is null — "
+          "the compositor did not advertise wl_shm");
+    }
     return m_shm;
   }
 
