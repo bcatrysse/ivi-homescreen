@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <atomic>
 #include <csignal>
 #include <cstdlib>
 
@@ -26,20 +27,26 @@
 #include "crash_handler.h"
 #endif
 
-volatile bool running = true;
+std::atomic<bool> running{true};
 
 std::unique_ptr<Logging> gLogger;
 
 /**
- * @brief Signal handler
- * @return void
- * @relation
- * internal
+ * @brief Signal handler for SIGINT / SIGTERM.
+ *
+ * POSIX async-signal-safety constraints:
+ *   - Only async-signal-safe functions may be called from a signal handler.
+ *   - spdlog (mutex, heap, I/O) and exit() (atexit handlers, stdio flush) are
+ *     NOT async-signal-safe and must not be called here.
+ *   - std::atomic::store with memory_order_relaxed is safe: the atomic
+ *     operation itself does not call any library functions.
+ *   - The main loop observes the flag on its next iteration and exits
+ *     cleanly, running all destructors and flushing the logger there.
+ *
+ * @param signal  The signal number (unused).
  */
 void SignalHandler(int /* signal */) {
-  SPDLOG_INFO("Ctl+C");
-  running = false;
-  exit(0);
+  running.store(false, std::memory_order_relaxed);
 }
 
 /**
@@ -65,11 +72,18 @@ int main(const int argc, char** argv) {
   const App app(configs);
 
   std::signal(SIGINT, SignalHandler);
+  std::signal(SIGTERM, SignalHandler);
 
   // run the application
   int ret = 0;
-  while (running && ret != -1) {
+  while (running.load(std::memory_order_acquire) && ret != -1) {
     ret = app.Loop();
+  }
+
+  // Log the shutdown reason here, in the safe main-thread context, rather
+  // than from the signal handler where spdlog is not async-signal-safe.
+  if (!running.load(std::memory_order_relaxed)) {
+    spdlog::info("Signal received — shutting down cleanly");
   }
 
   gLogger.reset();
