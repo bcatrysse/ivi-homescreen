@@ -21,6 +21,7 @@
 #include <rapidjson/document.h>
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/stringbuffer.h>
+#include <stdexcept>
 
 #include "logging/logging.h"
 #include "utils.h"
@@ -257,7 +258,16 @@ void AccessibilityTree::Init_AccessKit() {
   adapter = accesskit_unix_adapter_new(activation_handler_cbk, this,
                                        action_handler_cbk, this,
                                        deactivation_handler_cbk, this);
-  assert(adapter != nullptr);
+  // throw instead of assert(): assert is stripped in -DNDEBUG builds.
+  // A null adapter causes every subsequent accesskit_unix_adapter_* call
+  // (e.g. update_window_focus_state, update) to dereference a null pointer,
+  // crashing the process in release builds with no diagnostic.
+  if (adapter == nullptr) {
+    throw std::logic_error(
+        "AccessibilityTree::Init_AccessKit: "
+        "accesskit_unix_adapter_new returned null — "
+        "check that the AccessKit Unix backend is correctly initialised");
+  }
 }
 
 void AccessibilityTree::AccessKit_SetWindowFocus(bool focused) {

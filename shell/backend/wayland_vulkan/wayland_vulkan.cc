@@ -16,7 +16,6 @@
 
 #include "wayland_vulkan.h"
 
-#include <cassert>
 #include <cstdlib>
 #include <optional>
 #include <queue>
@@ -844,10 +843,31 @@ void WaylandVulkanBackend::CreateSurface(size_t /* index */,
                                          int32_t /* width */,
                                          int32_t /* height */) {
   SPDLOG_DEBUG("CreateSurface");
-  assert(instance_ != VK_NULL_HANDLE);
-  assert(surface_ == VK_NULL_HANDLE);
-  assert(wl_display_ != nullptr);
-  assert(surface != nullptr);
+  // throw instead of assert(): assert is stripped in -DNDEBUG builds.
+  // A null instance or already-initialised surface_ would cause
+  // vkCreateWaylandSurfaceKHR to crash inside the Vulkan driver with no
+  // actionable diagnostic.  std::logic_error surfaces the violated invariant
+  // immediately in all build configurations.
+  if (instance_ == VK_NULL_HANDLE) {
+    throw std::logic_error(
+        "WaylandVulkanBackend::CreateSurface: Vulkan instance is null — "
+        "CreateSurface called before the instance was initialised");
+  }
+  if (surface_ != VK_NULL_HANDLE) {
+    throw std::logic_error(
+        "WaylandVulkanBackend::CreateSurface: surface already initialised — "
+        "CreateSurface must not be called twice");
+  }
+  if (wl_display_ == nullptr) {
+    throw std::logic_error(
+        "WaylandVulkanBackend::CreateSurface: wl_display_ is null — "
+        "the Wayland display was not set before CreateSurface was called");
+  }
+  if (surface == nullptr) {
+    throw std::logic_error(
+        "WaylandVulkanBackend::CreateSurface: surface argument is null — "
+        "caller must supply a valid wl_surface*");
+  }
 
   surface_ = VK_NULL_HANDLE;
 
