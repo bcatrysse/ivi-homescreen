@@ -17,6 +17,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cstring>
+#include <stdexcept>
 #include <utility>
 
 #include <poll.h>
@@ -122,9 +123,17 @@ WaylandWindow::WaylandWindow(const size_t index,
     case WINDOW_PANEL_RIGHT:
       m_display->AglShellDoPanel(m_base_surface, AGL_SHELL_EDGE_RIGHT, 0);
       break;
-    default:
-      spdlog::critical("Invalid surface role type supplied");
-      assert(false);
+    default: {
+      // throw instead of assert(false): assert is stripped in -DNDEBUG builds,
+      // allowing the constructor to return with no AGL shell role set on the
+      // surface — the compositor then behaves unpredictably.  The exception
+      // unwinds the stack cleanly in all build configurations.
+      const std::string msg =
+          "WaylandWindow: invalid surface role type: " +
+          std::to_string(static_cast<int>(m_type));
+      spdlog::critical(msg);
+      throw std::logic_error(msg);
+    }
   }
 #endif
 

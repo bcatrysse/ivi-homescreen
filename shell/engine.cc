@@ -18,7 +18,7 @@
 #include <vector>
 
 #include <dlfcn.h>
-#include <cassert>
+#include <stdexcept>
 
 #include "config/common.h"
 #include "engine.h"
@@ -109,9 +109,15 @@ Engine::Engine(FlutterView* view,
     m_icu_data_path /= kSystemIcudtl;
   }
   if (!exists(m_icu_data_path)) {
-    spdlog::critical("({}) {} is not present.", m_index,
-                     m_icu_data_path.c_str());
-    assert(false);
+    const auto msg = fmt::format("({}) icudtl.dat not found at {}; "
+                                 "cannot initialise ICU", m_index,
+                                 m_icu_data_path.string());
+    spdlog::critical(msg);
+    // throw instead of assert(false): assert is stripped in -DNDEBUG builds,
+    // allowing the constructor to continue with an invalid icu_data_path and
+    // crash opaquely inside Run().  The exception unwinds the stack cleanly
+    // in all build configurations.
+    throw std::logic_error(msg);
   }
   SPDLOG_DEBUG("({}) icudtl.dat: {}", m_index, m_icu_data_path.c_str());
   m_args.icu_data_path = m_icu_data_path.c_str();
