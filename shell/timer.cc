@@ -19,6 +19,7 @@
 #include <cerrno>
 #include <cstring>
 #include <memory>
+#include <stdexcept>
 
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
@@ -29,7 +30,7 @@
 #define DEBUG_EVENT_TIMER 0
 
 uint32_t EventTimer::watched_fd = 0;
-int EventTimer::evfd = -1;
+int EventTimer::ev_fd = -1;
 std::mutex EventTimer::s_mutex;
 
 EventTimer::EventTimer(const int clock,
@@ -42,8 +43,12 @@ EventTimer::EventTimer(const int clock,
   // minimize the time spent holding it.
   m_timerfd = timerfd_create(clock, TFD_CLOEXEC | TFD_NONBLOCK);
   if (m_timerfd == -1) {
-    spdlog::critical("Failed to create timerfd. {}", strerror(errno));
-    exit(-1);
+    const auto msg = fmt::format("EventTimer: timerfd_create failed: {}",
+                                 strerror(errno));
+    spdlog::critical(msg);
+    // throw instead of exit(): exit() bypasses destructors for all
+    // already-constructed members (m_callback, m_callback_data).
+    throw std::runtime_error(msg);
   }
 
   // Initialize instance-only members before taking the class-wide lock.
@@ -54,19 +59,25 @@ EventTimer::EventTimer(const int clock,
     std::lock_guard lock(s_mutex);
     // evfd is the shared epoll fd for all EventTimer instances.  Only the
     // first constructor creates it; subsequent ones reuse it.
-    if (evfd < 0) {
-      evfd = epoll_create1(EPOLL_CLOEXEC);
-      if (evfd < 0) {
+    if (ev_fd < 0) {
+      ev_fd = epoll_create1(EPOLL_CLOEXEC);
+      if (ev_fd < 0) {
         if (errno != EINVAL) {
-          spdlog::critical("Failed to create epoll fd cloexec. {}",
-                           strerror(errno));
-          exit(-1);
+          const auto msg = fmt::format(
+              "EventTimer: epoll_create1(EPOLL_CLOEXEC) failed: {}",
+              strerror(errno));
+          spdlog::critical(msg);
+          // throw instead of exit(): exit() here fires while holding s_mutex,
+          // permanently deadlocking any subsequent EventTimer construction.
+          throw std::runtime_error(msg);
         } else {
           // fallback for kernels that don't support EPOLL_CLOEXEC
-          evfd = epoll_create(1);
-          if (evfd < 0) {
-            spdlog::critical("Failed to create epoll fd. {}", strerror(errno));
-            exit(-1);
+          ev_fd = epoll_create(1);
+          if (ev_fd < 0) {
+            const auto msg = fmt::format(
+                "EventTimer: epoll_create(1) failed: {}", strerror(errno));
+            spdlog::critical(msg);
+            throw std::runtime_error(msg);
           }
         }
       }
@@ -105,15 +116,15 @@ EventTimer::~EventTimer() {
 
 void EventTimer::_close_evfd_locked() {
   SPDLOG_TRACE("+ EventTimer::_close_evfd_locked()");
-  close(evfd);
-  evfd = -1;
+  close(ev_fd);
+  ev_fd = -1;
   SPDLOG_TRACE("- EventTimer::_close_evfd_locked()");
 }
 
 void EventTimer::_watch_fd_locked(int fd,
                                   uint32_t events,
                                   struct timer_task* task) {
-  if (evfd < 0) {
+  if (ev_fd < 0) {
     spdlog::critical("_watch_fd_locked: evfd is invalid. Ignored.");
     return;
   }
@@ -121,7 +132,7 @@ void EventTimer::_watch_fd_locked(int fd,
   struct epoll_event ep{};
   ep.events = events;
   ep.data.ptr = task;
-  if (epoll_ctl(evfd, EPOLL_CTL_ADD, fd, &ep) < 0) {
+  if (epoll_ctl(ev_fd, EPOLL_CTL_ADD, fd, &ep) < 0) {
     spdlog::critical("_watch_fd: epoll_ctl(EPOLL_CTL_ADD, fd={}) failed: {}",
                      fd, strerror(errno));
     return;
@@ -130,11 +141,11 @@ void EventTimer::_watch_fd_locked(int fd,
 }
 
 void EventTimer::_unwatch_fd_locked(int fd) {
-  if (evfd < 0) {
+  if (ev_fd < 0) {
     spdlog::critical("_unwatch_fd_locked: evfd is invalid. Ignored.");
     return;
   }
-  if (epoll_ctl(evfd, EPOLL_CTL_DEL, fd, nullptr) < 0) {
+  if (epoll_ctl(ev_fd, EPOLL_CTL_DEL, fd, nullptr) < 0) {
     spdlog::error("_unwatch_fd: epoll_ctl(EPOLL_CTL_DEL, fd={}) failed: {}", fd,
                   strerror(errno));
     return;
@@ -181,7 +192,7 @@ void EventTimer::wait_event() {
   int local_evfd;
   {
     std::lock_guard lock(s_mutex);
-    local_evfd = evfd;
+    local_evfd = ev_fd;
   }
   if (local_evfd < 0)
     return;
@@ -218,8 +229,12 @@ void EventTimer::set_timerspec(int32_t rate, int32_t delay) {
 
 void EventTimer::_arm(const int fd, itimerspec const* timerspec) {
   if (timerfd_settime(fd, 0, timerspec, nullptr) < 0) {
-    spdlog::critical("Failed to release timer. {}", strerror(errno));
-    exit(-1);
+    const auto msg = fmt::format("EventTimer::_arm: timerfd_settime failed: {}",
+                                 strerror(errno));
+    spdlog::critical(msg);
+    // throw instead of exit(): lets the caller (arm/disarm) propagate the
+    // failure up the stack rather than terminating without running destructors.
+    throw std::runtime_error(msg);
   }
 }
 

@@ -48,7 +48,7 @@ class EventTimer {
   // instances are constructed or destroyed concurrently (e.g. multi-view).
   static std::mutex s_mutex;
   static uint32_t watched_fd;
-  static int evfd;
+  static int ev_fd;
 
   int m_timerfd;
   struct itimerspec m_timerspec{};
