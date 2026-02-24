@@ -900,6 +900,13 @@ bool WaylandVulkanBackend::CreateBackingStore(
     void* /* user_data */) {
   SPDLOG_DEBUG("CreateBackingStore");
 #if 0  /// TODO
+  // N9 WARNING: before activating this code block, the raw `new` allocations
+  // below MUST be replaced with RAII wrappers.  CreateBackingStore currently
+  // always returns false before reaching this code, so the destruction_callback
+  // is never invoked — every frame would leak a FlutterVulkanImage and a
+  // UserData.  Use std::unique_ptr and transfer ownership into the
+  // destruction_callback via a captured raw pointer only after construction
+  // has succeeded, or store them in a side-table keyed by user_data.
     auto surface_size = SkISize::Make(config->size.width, config->size.height);
     TestVulkanImage* test_image = new TestVulkanImage(
         std::move(test_vulkan_context_->CreateImage(surface_size).value()));

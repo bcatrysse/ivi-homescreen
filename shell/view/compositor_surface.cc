@@ -7,6 +7,7 @@
 
 #include <EGL/eglext.h>
 #include <wayland-egl.h>
+#include <stdexcept>
 #include <utility>
 
 #include "../utils.h"
@@ -56,15 +57,24 @@ CompositorSurface::CompositorSurface(
 
   if (m_type == CompositorSurface::egl) {
     m_wl.egl_display = eglGetDisplay((NativeDisplayType)display->GetDisplay());
+    if (!m_wl.egl_display) {
+      throw std::logic_error(
+          "CompositorSurface: eglGetDisplay returned EGL_NO_DISPLAY");
+    }
     m_wl.egl_window = wl_egl_window_create(m_wl.surface, width, height);
-    assert(m_wl.egl_display);
-    assert(m_wl.egl_window);
+    if (!m_wl.egl_window) {
+      throw std::logic_error(
+          "CompositorSurface: wl_egl_window_create returned null");
+    }
   }
 
   // Sub-surface
   m_subsurface = wl_subcompositor_get_subsurface(display->GetSubCompositor(),
                                                  m_wl.surface, parent_surface);
-  assert(m_subsurface);
+  if (!m_subsurface) {
+    throw std::logic_error(
+        "CompositorSurface: wl_subcompositor_get_subsurface returned null");
+  }
 
   // Position
   wl_subsurface_set_position(m_subsurface, m_origin_x, m_origin_y);
@@ -117,8 +127,13 @@ void CompositorSurface::init_api(CompositorSurface* obj) {
   if (obj->m_api.version) {
     auto version = obj->m_api.version();
     if (version != kCompSurfExpectedInterfaceVersion) {
-      spdlog::critical("Unexpected interface version: 0x{:x}", version);
-      exit(1);
+      // throw instead of exit(): exit() bypasses all C++ destructors.
+      // The exception propagates out of the CompositorSurface constructor,
+      // running RAII cleanup for all already-constructed members.
+      throw std::logic_error(
+          fmt::format("CompositorSurface: unexpected interface version "
+                      "0x{:x} (expected 0x{:x})",
+                      version, kCompSurfExpectedInterfaceVersion));
     }
   } else {
     goto invalid;
@@ -157,8 +172,10 @@ void CompositorSurface::init_api(CompositorSurface* obj) {
   return;
 
 invalid:
-  spdlog::critical("Invalid API");
-  exit(1);
+  // throw instead of exit(): exit() bypasses all C++ destructors.
+  throw std::logic_error(
+      "CompositorSurface: plugin module is missing a required API symbol — "
+      "check that the .so exports all comp_surf_* functions");
 }
 
 std::string CompositorSurface::GetFilePath(const char* folder) {
@@ -167,9 +184,9 @@ std::string CompositorSurface::GetFilePath(const char* folder) {
 
   if (!std::filesystem::is_directory(path) || !std::filesystem::exists(path)) {
     if (!std::filesystem::create_directories(path)) {
-      spdlog::critical("GetCachePath create_directories failed: {}",
-                       path.c_str());
-      exit(EXIT_FAILURE);
+      throw std::logic_error(
+          fmt::format("CompositorSurface::GetFilePath: "
+                      "create_directories failed for: {}", path.string()));
     }
   }
 

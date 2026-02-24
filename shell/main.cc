@@ -16,6 +16,7 @@
 #include <atomic>
 #include <csignal>
 #include <cstdlib>
+#include <stdexcept>
 
 #include "config/common.h"
 
@@ -67,7 +68,13 @@ int main(const int argc, char** argv) {
   gLogger = std::make_unique<Logging>();
 
   const auto configs = Configuration::ParseArgcArgv(argc, argv);
-  assert(!configs.empty());
+  // Explicit check instead of assert(): assert is stripped in -DNDEBUG builds
+  // and produces no log output.  A clear critical message followed by throw
+  // gives an actionable diagnosis in all build configurations.
+  if (configs.empty()) {
+    spdlog::critical("No valid configuration found — cannot start");
+    throw std::invalid_argument("configs must not be empty");
+  }
 
   const App app(configs);
 

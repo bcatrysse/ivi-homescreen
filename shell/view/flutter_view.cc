@@ -15,6 +15,7 @@
 #include "flutter_view.h"
 
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 #if BUILD_BACKEND_HEADLESS_EGL
@@ -143,8 +144,13 @@ void FlutterView::Initialize() {
   m_flutter_engine->Run(m_state->engine_state.get());
 
   if (!m_flutter_engine->IsRunning()) {
-    spdlog::critical("Failed to Run Engine");
-    exit(EXIT_FAILURE);
+    // throw instead of exit(): exit() bypasses destructors for
+    // m_flutter_engine, m_accessibility_tree, m_state, backend, and
+    // WaylandWindow — all of which have already been constructed at this
+    // point.  The exception propagates to App::App(), unwinding all RAII
+    // resources cleanly.
+    throw std::runtime_error(
+        fmt::format("({}) FlutterView: engine failed to start", m_index));
   }
 
   // notify display update

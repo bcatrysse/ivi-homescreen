@@ -16,7 +16,7 @@
 
 #include "osmesa.h"
 
-#include <cassert>
+#include <stdexcept>
 
 #include <GLES2/gl2.h>
 
@@ -33,15 +33,29 @@ OSMesaHeadless::OSMesaHeadless(const int32_t initial_width,
   }
 
   m_context = OSMesaCreateContextExt(OSMESA_RGBA, 16, 0, 0, nullptr);
-  assert(m_context);
+  // throw instead of assert(): assert is stripped in -DNDEBUG builds, leaving
+  // m_context null.  Every subsequent OSMesaMakeCurrent call would fail
+  // silently and the engine would invoke GL through a null context — UB.
+  // The exception propagates out of the constructor cleanly via RAII;
+  // the destructor's OSMesaDestroyContext(m_context) is a no-op on null.
+  if (!m_context) {
+    throw std::logic_error(
+        "OSMesaHeadless: OSMesaCreateContextExt failed for main context");
+  }
   spdlog::trace("Context Created");
 
   m_resource_context = OSMesaCreateContextExt(OSMESA_RGBA, 16, 0, 0, m_context);
-  assert(m_resource_context);
+  if (!m_resource_context) {
+    throw std::logic_error(
+        "OSMesaHeadless: OSMesaCreateContextExt failed for resource context");
+  }
   spdlog::trace("Resource Context Created");
 
   m_texture_context = OSMesaCreateContextExt(OSMESA_RGBA, 16, 0, 0, m_context);
-  assert(m_texture_context);
+  if (!m_texture_context) {
+    throw std::logic_error(
+        "OSMesaHeadless: OSMesaCreateContextExt failed for texture context");
+  }
   spdlog::trace("Texture Context Created");
 
   m_buf = create_osmesa_buffer(m_width, m_height);
@@ -57,7 +71,15 @@ bool OSMesaHeadless::MakeCurrent() const {
   spdlog::trace("+MakeCurrent(), thread_id=0x{:x}", pthread_self());
   const bool ret =
       OSMesaMakeCurrent(m_context, m_buf, GL_UNSIGNED_BYTE, m_width, m_height);
-  assert(ret);
+  // Return false on failure (matching the @retval false Abnormal end contract)
+  // instead of assert(): the Flutter engine checks the bool return from its
+  // make_current callback and can retry or abort gracefully.  assert() was
+  // stripped in -DNDEBUG builds and caused the engine to continue rendering
+  // into an invalid GL context — undefined behaviour.
+  if (!ret) {
+    spdlog::error("OSMesaHeadless::MakeCurrent: OSMesaMakeCurrent failed");
+    return false;
+  }
   spdlog::trace("-MakeCurrent()");
   return true;
 }
@@ -66,7 +88,10 @@ bool OSMesaHeadless::ClearCurrent() const {
   spdlog::trace("+ClearCurrent(), thread_id=0x{:x}", pthread_self());
   const bool ret =
       OSMesaMakeCurrent(nullptr, nullptr, GL_UNSIGNED_BYTE, m_width, m_height);
-  assert(ret);
+  if (!ret) {
+    spdlog::error("OSMesaHeadless::ClearCurrent: OSMesaMakeCurrent failed");
+    return false;
+  }
   spdlog::trace("-ClearCurrent()");
   return true;
 }
@@ -75,7 +100,11 @@ bool OSMesaHeadless::MakeResourceCurrent() const {
   spdlog::trace("+MakeResourceCurrent(), thread_id=0x{:x}", pthread_self());
   const bool ret = OSMesaMakeCurrent(m_resource_context, m_buf,
                                      GL_UNSIGNED_BYTE, m_width, m_height);
-  assert(ret);
+  if (!ret) {
+    spdlog::error(
+        "OSMesaHeadless::MakeResourceCurrent: OSMesaMakeCurrent failed");
+    return false;
+  }
   spdlog::trace("-MakeResourceCurrent()");
   return true;
 }
@@ -84,7 +113,11 @@ bool OSMesaHeadless::MakeTextureCurrent() const {
   spdlog::trace("+MakeTextureCurrent(), thread_id=0x{:x}", pthread_self());
   const bool ret = OSMesaMakeCurrent(m_texture_context, m_buf, GL_UNSIGNED_BYTE,
                                      m_width, m_height);
-  assert(ret);
+  if (!ret) {
+    spdlog::error(
+        "OSMesaHeadless::MakeTextureCurrent: OSMesaMakeCurrent failed");
+    return false;
+  }
   spdlog::trace("-MakeTextureCurrent()");
   return true;
 }
