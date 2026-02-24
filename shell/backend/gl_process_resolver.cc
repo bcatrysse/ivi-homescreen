@@ -19,7 +19,7 @@
 #include <EGL/egl.h>
 #include <dlfcn.h>
 
-#include <cassert>
+#include <stdexcept>
 
 #include "logging.h"
 
@@ -61,8 +61,17 @@ void EglProcessResolver::Initialize() {
     if (handle) {
       m_handles.emplace_back(handle, name);
     } else {
-      spdlog::critical("{}: Library not found", name[0]);
-      assert(false);
+      // name[0] would log only the first character of the library name —
+      // use `name` (the full std::string) instead.
+      const auto msg = fmt::format("EglProcessResolver::Initialize: "
+                                   "required GL library not found: {}", name);
+      spdlog::critical(msg);
+      // throw instead of assert(false): assert is stripped in -DNDEBUG builds,
+      // allowing Initialize() to complete with an incomplete handle list.
+      // Subsequent process_resolver() calls would fail to find any GL symbol,
+      // causing null function-pointer calls deep in the engine.  The exception
+      // surfaces the failure immediately with a clear diagnostic.
+      throw std::logic_error(msg);
     }
   }
 }
