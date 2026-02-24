@@ -240,7 +240,6 @@ bool FlutterDesktopMessengerSendWithReply(FlutterDesktopMessengerRef messenger,
 
   auto f = PostMessengerSendWithReply(messenger, channel, message, message_size,
                                       reply, user_data);
-  f.wait();
   return f.get();
 }
 
