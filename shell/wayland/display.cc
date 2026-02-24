@@ -887,12 +887,17 @@ int Display::PollEvents() const {
 }
 
 void Display::StartEvents() {
-  if (event_thread_active_)
+  if (event_thread_active_.load(std::memory_order_acquire))
     return;
 
+  // Clear the stop flag before spawning so that a restart after StopEvents
+  // works correctly — without this the new thread would see the old true value
+  // and exit immediately.
+  stop_events_flag_.store(false, std::memory_order_release);
+
   event_thread_ = std::thread([this] {
-    event_thread_active_ = true;
-    while (!stop_events_flag_) {
+    event_thread_active_.store(true, std::memory_order_release);
+    while (!stop_events_flag_.load(std::memory_order_acquire)) {
       const int count = wl_display_dispatch(m_display);
       if (count == -1) {
         spdlog::error("Wayland Dispatch Error: {}", strerror(errno));
@@ -900,15 +905,15 @@ void Display::StartEvents() {
       }
       SPDLOG_TRACE("Wayland Event Count: {}", count);
     }
-    event_thread_active_ = false;
+    event_thread_active_.store(false, std::memory_order_release);
   });
 }
 
 void Display::StopEvents() {
-  if (!event_thread_active_)
+  if (!event_thread_active_.load(std::memory_order_acquire))
     return;
 
-  stop_events_flag_ = true;
+  stop_events_flag_.store(true, std::memory_order_release);
   if (event_thread_.joinable()) {
     event_thread_.join();
   }

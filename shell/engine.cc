@@ -63,8 +63,8 @@ Engine::Engine(FlutterView* view,
   m_platform_task_runner =
       std::make_shared<TaskRunner>("Platform", m_flutter_engine);
 
-  // Touch events
-  m_pointer_events.clear();
+  // Pre-allocate pointer event buffer.  The constructor runs single-threaded
+  // before Run() is called, so no lock is required here.
   m_pointer_events.reserve(kMaxPointerEvent);
 
   ///
@@ -542,12 +542,29 @@ void Engine::CoalesceTouchEvent(const FlutterPointerPhase phase,
 }
 
 void Engine::SendPointerEvents() {
-  if (!m_pointer_events.empty() && m_flutter_engine) {
+  // Acquire the lock first so that the emptiness check and the drain are a
+  // single atomic operation with respect to CoalesceMouseEvent /
+  // CoalesceTouchEvent.  Checking empty() before the lock would create a
+  // TOCTOU window: a Coalesce* call could push an event between the check and
+  // the lock acquisition, or clear the vector, yielding a data race on the
+  // vector internals.
+  std::vector<FlutterPointerEvent> events_to_send;
+  {
     std::scoped_lock lock(m_pointer_mutex);
-    LibFlutterEngine->SendPointerEvent(
-        m_flutter_engine, m_pointer_events.data(), m_pointer_events.size());
-    m_pointer_events.clear();
+    if (m_pointer_events.empty() || !m_flutter_engine) {
+      return;
+    }
+    // Swap out the accumulated events so the mutex is released before the
+    // engine call.  This keeps the critical section minimal and avoids holding
+    // m_pointer_mutex across a potentially-blocking Flutter engine API call.
+    events_to_send.swap(m_pointer_events);
+    // Restore pre-allocated capacity so future Coalesce* calls don't
+    // reallocate.
+    m_pointer_events.reserve(kMaxPointerEvent);
   }
+
+  LibFlutterEngine->SendPointerEvent(
+      m_flutter_engine, events_to_send.data(), events_to_send.size());
 }
 
 FlutterEngineAOTData Engine::LoadAotData(const std::string& bundle_path) const {
