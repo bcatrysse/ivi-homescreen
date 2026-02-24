@@ -23,7 +23,9 @@
 #include "logging/logging.h"
 
 Watchdog::Watchdog()
-    : interval_(std::chrono::microseconds(kDefaultTimeout)), stop_flag_(false) {
+    : interval_(std::chrono::microseconds(kDefaultTimeout)),
+      stop_flag_(false),
+      deadline_ns_(0) {
 #if BUILD_SYSTEMD_WATCHDOG
   uint64_t interval;
   if (sd_watchdog_enabled(0, &interval) > 0) {
@@ -48,8 +50,14 @@ void Watchdog::start() {
 #if BUILD_SYSTEMD_WATCHDOG
     sd_notifyf(0, "STATUS=Running");
 #endif
-    while (!stop_flag_) {
-      if (std::chrono::steady_clock::now() >= deadline_) {
+    while (!stop_flag_.load(std::memory_order_acquire)) {
+      // Load the deadline atomically.  pet() stores with release ordering so
+      // this acquires load is guaranteed to see the latest written value.
+      const auto deadline_ns = deadline_ns_.load(std::memory_order_acquire);
+      const auto deadline = std::chrono::steady_clock::time_point(
+          std::chrono::nanoseconds(deadline_ns));
+
+      if (std::chrono::steady_clock::now() >= deadline) {
         spdlog::critical("Watchdog timeout");
         // TODO dump stack
 #if BUILD_SYSTEMD_WATCHDOG
@@ -59,11 +67,11 @@ void Watchdog::start() {
 #endif
         break;
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(
-          kDefaultSleepTime));  // idle until next check
+      std::this_thread::sleep_for(
+          std::chrono::milliseconds(kDefaultSleepTime));
     }
   });
-  pet();  // _reset the watchdog deadline to now + interval at the start
+  pet();  // reset the watchdog deadline to now + interval at the start
 }
 
 void Watchdog::stop() {
@@ -74,7 +82,13 @@ void Watchdog::stop() {
 }
 
 void Watchdog::pet() {
-  deadline_ = std::chrono::steady_clock::now() + interval_;
+  const auto new_deadline =
+      std::chrono::steady_clock::now() + interval_;
+  // Store with release ordering so the watchdog thread's acquire load on
+  // deadline_ns_ is guaranteed to observe this updated value.
+  deadline_ns_.store(
+      static_cast<uint64_t>(new_deadline.time_since_epoch().count()),
+      std::memory_order_release);
 #if BUILD_SYSTEMD_WATCHDOG
   sd_notify(0, "WATCHDOG=1");
 #endif

@@ -95,7 +95,15 @@ class Watchdog {
   std::chrono::microseconds interval_;
   std::thread watchdog_thread_;
   std::atomic<bool> stop_flag_;
-  std::chrono::steady_clock::time_point deadline_;
+
+  // deadline_ stores the expiry time as nanoseconds since the steady_clock
+  // epoch.  It is written by pet() on the main thread and read by the watchdog
+  // thread on every poll cycle, so it must be atomic.
+  //
+  // std::atomic<uint64_t> is lock-free on every supported target, unlike a
+  // raw std::chrono::steady_clock::time_point which provides no atomicity
+  // guarantees and would constitute a data race under the C++11 memory model.
+  std::atomic<uint64_t> deadline_ns_;
 };
 
 #endif  // SHELL_WATCHDOG_H_
