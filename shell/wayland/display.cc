@@ -901,6 +901,13 @@ void Display::StartEvents() {
       const int count = wl_display_dispatch(m_display);
       if (count == -1) {
         spdlog::error("Wayland Dispatch Error: {}", strerror(errno));
+        // Set the stop flag before exiting so that:
+        //  1. StopEvents() sees a consistent stopped state and can join().
+        //  2. A subsequent StartEvents() call resets the flag correctly
+        //     rather than finding it already false while the old thread
+        //     object is still joinable, which would cause std::terminate()
+        //     on the move-assignment inside StartEvents().
+        stop_events_flag_.store(true, std::memory_order_release);
         break;
       }
       SPDLOG_TRACE("Wayland Event Count: {}", count);
@@ -910,9 +917,11 @@ void Display::StartEvents() {
 }
 
 void Display::StopEvents() {
-  if (!event_thread_active_.load(std::memory_order_acquire))
-    return;
-
+  // Always attempt to join a joinable thread, even if event_thread_active_ is
+  // already false — the thread may have self-exited on a Wayland error and
+  // set event_thread_active_ = false before StopEvents() was called.  A
+  // joinable thread that is not joined before the next StartEvents() call
+  // (which move-assigns event_thread_) would invoke std::terminate().
   stop_events_flag_.store(true, std::memory_order_release);
   if (event_thread_.joinable()) {
     event_thread_.join();
