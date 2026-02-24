@@ -86,7 +86,25 @@ LibFlutterEngineExports::LibFlutterEngineExports(void* lib) {
 }
 
 LibFlutterEngineExports* LibFlutterEngine::operator->() const {
-  return loadExports(nullptr);
+  LibFlutterEngineExports* exports = loadExports(nullptr);
+  if (exports == nullptr) {
+    // loadExports returns nullptr when libflutter_engine.so could not be
+    // opened or when the Initialize symbol is absent (indicating an
+    // incompatible or truncated library).  Returning nullptr here would
+    // cause a silent null-pointer dereference at whichever of the 30+
+    // call sites happens to use operator-> first — producing no actionable
+    // diagnostic.  Terminating here, at the single chokepoint, gives a
+    // precise error message and a clean abort rather than undefined behavior.
+    //
+    // std::cerr is used instead of spdlog because the logger may not yet
+    // be initialized when this path is hit (e.g. from the TaskRunner or
+    // handler_priority_queue before Engine::Engine runs its IsPresent check).
+    std::cerr << "[FATAL] libflutter_engine.so could not be loaded or is "
+                 "missing the required 'FlutterEngineInitialize' symbol. "
+                 "Ensure libflutter_engine.so is present and accessible.\n";
+    std::abort();
+  }
+  return exports;
 }
 
 LibFlutterEngineExports* LibFlutterEngine::loadExports(

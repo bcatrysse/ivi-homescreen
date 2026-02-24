@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <cstdlib>
+#include <iostream>
+
 #include "flutter/shell/platform/embedder/embedder.h"
 
 struct LibFlutterEngineExports {
@@ -69,10 +72,25 @@ struct LibFlutterEngineExports {
 
 class LibFlutterEngine {
  public:
+  /**
+   * @brief Returns true if libflutter_engine.so is loaded and the
+   *        FlutterEngineInitialize symbol is present.
+   *
+   * Must be called (and must return true) before any use of operator->.
+   * operator-> aborts the process with a diagnostic message if the library
+   * is not loaded, rather than returning nullptr and causing a silent
+   * null-pointer dereference at an arbitrary call site.
+   */
   static bool IsPresent(const char* library_path = nullptr) {
     return loadExports(library_path) != nullptr;
   }
 
+  /**
+   * @brief Returns the loaded engine exports struct.
+   * @note Calls std::abort() with a diagnostic message if the library was
+   *       not loaded or is missing the Initialize symbol.  Call IsPresent()
+   *       first to verify availability before the engine is started.
+   */
   LibFlutterEngineExports* operator->() const;
 
  private:
