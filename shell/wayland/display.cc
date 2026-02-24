@@ -285,8 +285,20 @@ void Display::display_handle_geometry(void* data,
                                       const char* /* model */,
                                       int transform) {
   auto* oi = static_cast<output_info_t*>(data);
-  oi->physical_width = static_cast<unsigned int>(physical_width);
-  oi->physical_height = static_cast<unsigned int>(physical_height);
+
+  // The Wayland protocol sends physical size as int; virtual and headless
+  // compositors may report 0 or negative values.  Store the raw value so
+  // the information is not destroyed, but clamp to 0 so downstream code
+  // that uses the field as a physical measurement is never given a negative
+  // millimetre count.  The original signed value is still logged below.
+  if (physical_width < 0 || physical_height < 0) {
+    spdlog::warn(
+        "display_handle_geometry: compositor reported negative physical size "
+        "({} x {} mm) — likely a virtual/headless output; clamping to 0",
+        physical_width, physical_height);
+  }
+  oi->physical_width = std::max(0, physical_width);
+  oi->physical_height = std::max(0, physical_height);
   oi->transform = transform;
 
   SPDLOG_DEBUG("Physical width: {} mm x {} mm", physical_width,
@@ -302,9 +314,20 @@ void Display::display_handle_mode(void* data,
   auto* oi = static_cast<output_info_t*>(data);
 
   if ((flags & WL_OUTPUT_MODE_CURRENT) == WL_OUTPUT_MODE_CURRENT) {
-    oi->height = static_cast<unsigned int>(height);
-    oi->width = static_cast<unsigned int>(width);
-    oi->refresh_rate = refresh / 1000.0;
+    if (width <= 0 || height <= 0) {
+      spdlog::warn(
+          "display_handle_mode: compositor reported non-positive video mode "
+          "dimensions ({} x {}); ignoring mode",
+          width, height);
+    } else {
+      // Store directly as int32_t — the Wayland protocol wire type is int,
+      // and GetVideoModeSize() returns pair<int32_t,int32_t>.  The previous
+      // static_cast<unsigned int> would have wrapped negative values to huge
+      // numbers and then silently narrowed back to int32_t on read.
+      oi->width = width;
+      oi->height = height;
+      oi->refresh_rate = refresh / 1000.0;
+    }
   }
 
   SPDLOG_DEBUG("Video mode: {} x {} @ {} Hz", width, height, refresh / 1000.0);

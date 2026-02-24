@@ -404,10 +404,14 @@ class Display {
   typedef struct output_info {
     struct wl_output* output;
     uint32_t global_id;
-    unsigned width;
-    unsigned height;
-    unsigned physical_width;
-    unsigned physical_height;
+    // width, height, physical_width, physical_height mirror the Wayland
+    // protocol wire types (int / int32).  They are stored as int32_t so
+    // that zero and negative values from virtual/headless compositors are
+    // represented faithfully rather than wrapping to huge unsigned values.
+    int32_t width;
+    int32_t height;
+    int32_t physical_width;
+    int32_t physical_height;
     double refresh_rate;
     int32_t scale;
     bool done;
