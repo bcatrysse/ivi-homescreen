@@ -455,20 +455,31 @@ bool Engine::SendPlatformMessage(const char* channel,
 
 // Passes locale information to the Flutter engine.
 void Engine::SetUpLocales() const {
-  constexpr FlutterLocale locale = {.struct_size = sizeof(FlutterLocale),
-                                    .language_code = kDefaultLocaleLanguageCode,
-                                    .country_code = kDefaultLocaleCountryCode,
-                                    .script_code = kDefaultLocaleScriptCode,
-                                    .variant_code = nullptr};
+  // static constexpr gives the struct static storage duration so that &locale
+  // remains valid indefinitely.  A plain constexpr local has automatic storage
+  // duration (stack); its address would become dangling the moment SetUpLocales
+  // returns, which is a problem when QueueUpdateLocales posts the call to the
+  // task-runner strand — the task may execute after this stack frame is gone.
+  // All members point to constexpr char[] constants that already have static
+  // storage duration, so this struct is safe to treat as permanently resident.
+  static constexpr FlutterLocale kLocale = {
+      .struct_size = sizeof(FlutterLocale),
+      .language_code = kDefaultLocaleLanguageCode,
+      .country_code = kDefaultLocaleCountryCode,
+      .script_code = kDefaultLocaleScriptCode,
+      .variant_code = nullptr};
 
+  // The vector holds a pointer; kLocale's static lifetime guarantees the
+  // pointer remains valid when the strand task eventually dereferences it.
   std::vector<const FlutterLocale*> flutter_locale_list;
-  flutter_locale_list.push_back(&locale);
+  flutter_locale_list.push_back(&kLocale);
 
   FlutterEngineResult result;
   if (!m_platform_task_runner->IsThreadEqual(pthread_self())) {
     auto f = m_platform_task_runner->QueueUpdateLocales(
         std::move(flutter_locale_list));
-    f.wait();
+    // f.get() already blocks until the task completes; f.wait() beforehand
+    // is redundant and was removed.
     result = f.get();
   } else {
     result = LibFlutterEngine->UpdateLocales(m_flutter_engine,
