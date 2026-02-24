@@ -15,6 +15,7 @@
 
 #include "app.h"
 
+#include <stdexcept>
 #include <thread>
 
 #include "config/common.h"
@@ -26,11 +27,23 @@
 #include "backend/headless/headless.h"
 #endif
 
+// static
+const Configuration::Config& App::ValidatedFirst(
+    const std::vector<Configuration::Config>& configs) {
+  if (configs.empty()) {
+    spdlog::critical(
+        "App requires at least one view configuration, but none were provided");
+    throw std::invalid_argument("configs must not be empty");
+  }
+  return configs[0];
+}
+
 App::App(const std::vector<Configuration::Config>& configs)
-    : m_wayland_display(std::make_shared<Display>(!configs[0].disable_cursor,
-                                                  configs[0].wayland_event_mask,
-                                                  configs[0].cursor_theme,
-                                                  configs)) {
+    : m_wayland_display(
+          std::make_shared<Display>(!ValidatedFirst(configs).disable_cursor,
+                                    ValidatedFirst(configs).wayland_event_mask,
+                                    ValidatedFirst(configs).cursor_theme,
+                                    configs)) {
   SPDLOG_DEBUG("+App::App");
 #if ENABLE_AGL_SHELL_CLIENT
   bool found_view_with_bg = false;
@@ -96,7 +109,8 @@ int App::Loop() const {
 #if BUILD_WATCHDOG
     m_watch_dog->pet();
 #endif
-    std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(sleep_time));
+    std::this_thread::sleep_for(
+        std::chrono::duration<double, std::milli>(sleep_time));
   }
 
   return 0;
@@ -105,8 +119,13 @@ int App::Loop() const {
 #if BUILD_BACKEND_HEADLESS_EGL
 
 GLubyte* App::getViewRenderBuf(const int i) const {
+  if (i < 0 || static_cast<size_t>(i) >= m_views.size()) {
+    spdlog::error("getViewRenderBuf: index {} is out of range (size={})", i,
+                  m_views.size());
+    return nullptr;
+  }
   return reinterpret_cast<HeadlessBackend*>(
-             m_views[static_cast<unsigned long>(i)]->GetBackend())
+             m_views[static_cast<size_t>(i)]->GetBackend())
       ->getHeadlessBuffer();
 }
 

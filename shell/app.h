@@ -33,7 +33,6 @@ class App final {
   ~App();
 
   App(const App&) = delete;
-
   const App& operator=(const App&) = delete;
 
   /**
@@ -46,10 +45,19 @@ class App final {
   [[nodiscard]] int Loop() const;
 
 #if BUILD_BACKEND_HEADLESS_EGL
-  uint8_t* getViewRenderBuf(int i) const;
+  GLubyte* getViewRenderBuf(int i) const;
 #endif
 
  private:
+  /**
+   * @brief Validates that @p configs is non-empty and returns a const-ref to
+   *        configs[0].  Called from the member-initializer list so that
+   *        configs[0] is never accessed when the vector is empty.
+   * @throws std::invalid_argument if configs is empty.
+   */
+  static const Configuration::Config& ValidatedFirst(
+      const std::vector<Configuration::Config>& configs);
+
   std::shared_ptr<Display> m_wayland_display;
   std::vector<std::unique_ptr<FlutterView>> m_views;
   std::unique_ptr<Watchdog> m_watch_dog;
