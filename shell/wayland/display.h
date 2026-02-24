@@ -477,6 +477,13 @@ class Display {
   std::mutex m_lock;
   uint32_t m_repeat_code{};
 
+  // Guards m_active_engine, m_active_surface, m_touch_engine, and
+  // m_surface_engine_map.  These members are written from the main thread
+  // (SetEngine) and read/written from the Wayland event thread
+  // (pointer_handle_enter, keyboard_handle_enter, touch_handle_down, and all
+  // subsequent pointer/touch callbacks).  Every access must hold this mutex.
+  mutable std::mutex m_engine_mutex;
+
   /**
    * @brief set repeat code
    * @param[in] display

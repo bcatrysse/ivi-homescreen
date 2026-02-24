@@ -421,15 +421,21 @@ void Display::pointer_handle_enter(void* data,
                                    wl_fixed_t sx,
                                    wl_fixed_t sy) {
   auto* d = static_cast<Display*>(data);
-  d->m_active_surface = surface;
-  d->m_active_engine = d->m_surface_engine_map[surface];
+
+  Engine* engine;
+  {
+    std::lock_guard lock(d->m_engine_mutex);
+    d->m_active_surface = surface;
+    d->m_active_engine = d->m_surface_engine_map[surface];
+    engine = d->m_active_engine;
+  }
 
   d->m_pointer.event.surface_x = wl_fixed_to_double(sx);
   d->m_pointer.event.surface_y = wl_fixed_to_double(sy);
   d->m_pointer.serial = serial;
 
-  if (d->m_active_engine) {
-    d->m_active_engine->CoalesceMouseEvent(
+  if (engine) {
+    engine->CoalesceMouseEvent(
         kFlutterPointerSignalKindNone, kAdd, d->m_pointer.event.surface_x,
         d->m_pointer.event.surface_y, 0.0, 0.0, d->m_pointer.buttons);
   }
@@ -443,10 +449,15 @@ void Display::pointer_handle_leave(void* data,
 
   d->m_pointer.serial = serial;
 
-  if (d->m_active_engine) {
-    d->m_active_engine->CoalesceMouseEvent(kFlutterPointerSignalKindNone,
-                                           kRemove, 0.0, 0.0, 0.0, 0.0,
-                                           d->m_pointer.buttons);
+  Engine* engine;
+  {
+    std::lock_guard lock(d->m_engine_mutex);
+    engine = d->m_active_engine;
+  }
+  if (engine) {
+    engine->CoalesceMouseEvent(kFlutterPointerSignalKindNone,
+                               kRemove, 0.0, 0.0, 0.0, 0.0,
+                               d->m_pointer.buttons);
   }
 }
 
@@ -461,10 +472,15 @@ void Display::pointer_handle_motion(void* data,
     d->m_pointer.event.surface_x = wl_fixed_to_double(sx);
     d->m_pointer.event.surface_y = wl_fixed_to_double(sy);
 
-    if (d->m_active_engine) {
+    Engine* engine;
+    {
+      std::lock_guard lock(d->m_engine_mutex);
+      engine = d->m_active_engine;
+    }
+    if (engine) {
       const FlutterPointerPhase phase =
           pointerButtonStatePressed(&d->m_pointer) ? kMove : kHover;
-      d->m_active_engine->CoalesceMouseEvent(
+      engine->CoalesceMouseEvent(
           kFlutterPointerSignalKindNone, phase, d->m_pointer.event.surface_x,
           d->m_pointer.event.surface_y, 0.0, 0.0, d->m_pointer.buttons);
     }
@@ -497,8 +513,13 @@ void Display::pointer_handle_button(void* data,
       phase = kUp;
     }
 
-    if (d->m_active_engine) {
-      d->m_active_engine->CoalesceMouseEvent(
+    Engine* engine;
+    {
+      std::lock_guard lock(d->m_engine_mutex);
+      engine = d->m_active_engine;
+    }
+    if (engine) {
+      engine->CoalesceMouseEvent(
           kFlutterPointerSignalKindNone, phase, d->m_pointer.event.surface_x,
           d->m_pointer.event.surface_y, 0.0, 0.0, d->m_pointer.buttons);
     }
@@ -515,8 +536,13 @@ void Display::pointer_handle_axis(void* data,
     d->m_pointer.event.time = time;
     d->m_pointer.event.axes[axis].value = wl_fixed_to_double(value);
 
-    if (d->m_active_engine) {
-      d->m_active_engine->CoalesceMouseEvent(
+    Engine* engine;
+    {
+      std::lock_guard lock(d->m_engine_mutex);
+      engine = d->m_active_engine;
+    }
+    if (engine) {
+      engine->CoalesceMouseEvent(
           kFlutterPointerSignalKindScroll, FlutterPointerPhase::kMove,
           d->m_pointer.event.surface_x, d->m_pointer.event.surface_y,
           d->m_pointer.event.axes[1].value, d->m_pointer.event.axes[0].value,
@@ -567,8 +593,11 @@ void Display::keyboard_handle_enter(void* data,
                                     struct wl_array* /* keys */) {
   SPDLOG_TRACE("+ Display::keyboard_handle_enter()");
   auto* d = static_cast<Display*>(data);
-  d->m_active_surface = surface;
-  d->m_active_engine = d->m_surface_engine_map[surface];
+  {
+    std::lock_guard lock(d->m_engine_mutex);
+    d->m_active_surface = surface;
+    d->m_active_engine = d->m_surface_engine_map[surface];
+  }
   SPDLOG_TRACE("- Display::keyboard_handle_enter()");
 }
 
@@ -759,12 +788,17 @@ void Display::touch_handle_down(void* data,
   d->m_touch.surface_x[id] = x_w;
   d->m_touch.surface_y[id] = y_w;
 
-  d->m_active_surface = surface;
-  d->m_touch_engine = d->m_surface_engine_map[surface];
-  if (d->m_touch_engine) {
-    d->m_touch_engine->CoalesceTouchEvent(FlutterPointerPhase::kDown,
-                                          wl_fixed_to_double(x_w),
-                                          wl_fixed_to_double(y_w), id);
+  Engine* engine;
+  {
+    std::lock_guard lock(d->m_engine_mutex);
+    d->m_active_surface = surface;
+    d->m_touch_engine = d->m_surface_engine_map[surface];
+    engine = d->m_touch_engine;
+  }
+  if (engine) {
+    engine->CoalesceTouchEvent(FlutterPointerPhase::kDown,
+                               wl_fixed_to_double(x_w),
+                               wl_fixed_to_double(y_w), id);
   }
 }
 
@@ -775,8 +809,13 @@ void Display::touch_handle_up(void* data,
                               int32_t id) {
   const auto* d = static_cast<Display*>(data);
 
-  if (d->m_touch_engine) {
-    d->m_touch_engine->CoalesceTouchEvent(
+  Engine* engine;
+  {
+    std::lock_guard lock(d->m_engine_mutex);
+    engine = d->m_touch_engine;
+  }
+  if (engine) {
+    engine->CoalesceTouchEvent(
         kUp, wl_fixed_to_double(d->m_touch.surface_x[id]),
         wl_fixed_to_double(d->m_touch.surface_y[id]), id);
   }
@@ -793,19 +832,30 @@ void Display::touch_handle_motion(void* data,
   d->m_touch.surface_x[id] = x_w;
   d->m_touch.surface_y[id] = y_w;
 
-  if (d->m_touch_engine) {
-    d->m_touch_engine->CoalesceTouchEvent(FlutterPointerPhase::kMove,
-                                          wl_fixed_to_double(x_w),
-                                          wl_fixed_to_double(y_w), id);
+  Engine* engine;
+  {
+    std::lock_guard lock(d->m_engine_mutex);
+    engine = d->m_touch_engine;
+  }
+  if (engine) {
+    engine->CoalesceTouchEvent(FlutterPointerPhase::kMove,
+                               wl_fixed_to_double(x_w),
+                               wl_fixed_to_double(y_w), id);
   }
 }
 
 void Display::touch_handle_cancel(void* data, struct wl_touch* /* wl_touch */) {
   const auto* d = static_cast<Display*>(data);
-  if (d->m_touch_engine) {
+
+  Engine* engine;
+  {
+    std::lock_guard lock(d->m_engine_mutex);
+    engine = d->m_touch_engine;
+  }
+  if (engine) {
     SPDLOG_DEBUG("touch_handle_cancel");
-    d->m_touch_engine->CoalesceTouchEvent(kCancel, d->m_pointer.event.surface_x,
-                                          d->m_pointer.event.surface_y, 0);
+    engine->CoalesceTouchEvent(kCancel, d->m_pointer.event.surface_x,
+                               d->m_pointer.event.surface_y, 0);
   }
 }
 
@@ -907,6 +957,7 @@ void Display::AglShellDoSetupActivationArea(uint32_t x,
 #endif
 
 void Display::SetEngine(wl_surface* surface, Engine* engine) {
+  std::lock_guard lock(m_engine_mutex);
   m_active_engine = engine;
   m_active_surface = surface;
   m_surface_engine_map[surface] = engine;
