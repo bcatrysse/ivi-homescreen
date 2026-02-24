@@ -195,13 +195,6 @@ Engine::~Engine() {
   m_platform_task_runner.reset();
 }
 
-FlutterEngineResult Engine::RunTask() {
-  if (!m_flutter_engine) {
-    return kSuccess;
-  }
-
-  return kSuccess;
-}
 
 FlutterEngineResult Engine::Shutdown() const {
   if (!m_flutter_engine) {

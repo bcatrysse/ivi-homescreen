@@ -185,7 +185,9 @@ void FlutterView::Initialize() {
 }
 
 void FlutterView::RunTasks() {
-  m_flutter_engine->RunTask();
+  // Engine::RunTask() was a permanent no-op (both branches returned kSuccess
+  // unconditionally) and has been removed.  Task-runner dispatch is handled
+  // by the TaskRunner strand posted in Engine::Run().
 
 #ifdef ENABLE_PLUGIN_COMP_SURF
   for (auto const& surface : m_comp_surf) {
