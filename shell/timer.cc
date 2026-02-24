@@ -138,7 +138,15 @@ void EventTimer::_watch_fd(int fd, uint32_t events, struct timer_task* task) {
 
   ep.events = events;
   ep.data.ptr = task;
-  epoll_ctl(evfd, EPOLL_CTL_ADD, fd, &ep);
+  if (epoll_ctl(evfd, EPOLL_CTL_ADD, fd, &ep) < 0) {
+    // Do NOT increment watched_fd — the fd was never registered, so the
+    // destructor's "if (watched_fd == 0) close_evfd()" guard must not be
+    // skewed, and the paired _unwatch_fd must not attempt a DEL for an fd
+    // that epoll does not know about.
+    spdlog::critical("_watch_fd: epoll_ctl(EPOLL_CTL_ADD, fd={}) failed: {}",
+                     fd, strerror(errno));
+    return;
+  }
   watched_fd++;
 }
 
@@ -156,7 +164,14 @@ void EventTimer::_unwatch_fd(int fd) {
     spdlog::critical("Unexpected call _unwatch_fd(). Ignored.");
     return;
   }
-  epoll_ctl(evfd, EPOLL_CTL_DEL, fd, nullptr);
+  if (epoll_ctl(evfd, EPOLL_CTL_DEL, fd, nullptr) < 0) {
+    // Do NOT decrement watched_fd — the fd is still registered in the epoll
+    // instance (zombie entry), so closing evfd based on a zeroed count would
+    // be premature and would leave other live timers without an epoll fd.
+    spdlog::error("_unwatch_fd: epoll_ctl(EPOLL_CTL_DEL, fd={}) failed: {}",
+                  fd, strerror(errno));
+    return;
+  }
   watched_fd--;
 }
 
