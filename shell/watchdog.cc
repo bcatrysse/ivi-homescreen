@@ -63,7 +63,7 @@ void Watchdog::start() {
 #if BUILD_SYSTEMD_WATCHDOG
         sd_notify(0, "WATCHDOG=trigger");
 #else
-        exit(EXIT_FAILURE);
+        std::abort();
 #endif
         break;
       }
