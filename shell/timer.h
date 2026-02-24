@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <sys/epoll.h>
 #include <sys/timerfd.h>
+#include <mutex>
 
 struct timer_task {
   void (*run)(timer_task const* task, uint32_t events);
@@ -43,6 +43,10 @@ class EventTimer {
   EventTimer(const EventTimer&) = delete;
   const EventTimer& operator=(const EventTimer&) = delete;
 
+  // These three statics are shared across all EventTimer instances.
+  // Every access must hold s_mutex to prevent data races when multiple
+  // instances are constructed or destroyed concurrently (e.g. multi-view).
+  static std::mutex s_mutex;
   static uint32_t watched_fd;
   static int evfd;
 
@@ -120,6 +124,12 @@ class EventTimer {
   static void wait_event();
 
  private:
+  // Variants called with s_mutex already held — used by the constructor and
+  // destructor to keep their entire critical section under a single lock.
+  static void _close_evfd_locked();
+  static void _watch_fd_locked(int fd, uint32_t events, struct timer_task* task);
+  static void _unwatch_fd_locked(int fd);
+
   /**
    * @brief an internal func for arm/disarm
    * @param[in] fd timer fd

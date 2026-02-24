@@ -30,56 +30,168 @@
 
 uint32_t EventTimer::watched_fd = 0;
 int EventTimer::evfd = -1;
+std::mutex EventTimer::s_mutex;
 
-EventTimer::EventTimer(int clock, evtimer_cb callback, void* callback_data)
+EventTimer::EventTimer(const int clock,
+                       const evtimer_cb callback,
+                       void* callback_data)
     : m_callback(callback), m_callback_data(callback_data) {
   SPDLOG_TRACE("+ EventTimer()");
-  if (evfd < 0) {
-    // initialize class-global epoll fd
-    evfd = epoll_create1(EPOLL_CLOEXEC);
-    if (evfd < 0) {
-      if (errno != EINVAL) {
-        spdlog::critical("Failed to create epoll fd cloexec. {}",
-                         strerror(errno));
-        exit(-1);
-      } else {
-        // fallback
-        evfd = epoll_create(1);
-        if (evfd < 0) {
-          spdlog::critical("Failed to create epoll fd. {}", strerror(errno));
-          exit(-1);
-        }
-      }
-    }
-  }
 
+  // Create the per-instance timerfd before taking the class-wide lock so we
+  // minimize the time spent holding it.
   m_timerfd = timerfd_create(clock, TFD_CLOEXEC | TFD_NONBLOCK);
   if (m_timerfd == -1) {
     spdlog::critical("Failed to create timerfd. {}", strerror(errno));
     exit(-1);
   }
 
-  watch_timerfd();
+  // Initialize instance-only members before taking the class-wide lock.
+  m_task.run = EventTimer::run;
+  m_task.data = reinterpret_cast<void*>(this);
+
+  {
+    std::lock_guard lock(s_mutex);
+    // evfd is the shared epoll fd for all EventTimer instances.  Only the
+    // first constructor creates it; subsequent ones reuse it.
+    if (evfd < 0) {
+      evfd = epoll_create1(EPOLL_CLOEXEC);
+      if (evfd < 0) {
+        if (errno != EINVAL) {
+          spdlog::critical("Failed to create epoll fd cloexec. {}",
+                           strerror(errno));
+          exit(-1);
+        } else {
+          // fallback for kernels that don't support EPOLL_CLOEXEC
+          evfd = epoll_create(1);
+          if (evfd < 0) {
+            spdlog::critical("Failed to create epoll fd. {}", strerror(errno));
+            exit(-1);
+          }
+        }
+      }
+    }
+    // Register our timerfd with the shared epoll instance and increment the
+    // reference count.  Both operations must be inside the same lock scope so
+    // the destructor's watched_fd == 0 → close_evfd invariant is maintained.
+    _watch_fd_locked(m_timerfd, EPOLLIN, &m_task);
+  }
+
+  SPDLOG_TRACE("- EventTimer()");
 }
 
 EventTimer::~EventTimer() {
   SPDLOG_TRACE("+ ~EventTimer()");
 
-  unwatch_timerfd();
+  {
+    std::lock_guard lock(s_mutex);
+    _unwatch_fd_locked(m_timerfd);
+    // Close the shared epoll fd only when the last instance has unregistered.
+    // Both the decrement and the close check must be inside the same lock scope
+    // to prevent two concurrent destructors from both seeing watched_fd == 0.
+    if (watched_fd == 0)
+      _close_evfd_locked();
+  }
+
   close(m_timerfd);
   m_timerfd = -1;
-
-  if (watched_fd == 0)
-    close_evfd();
 
   SPDLOG_TRACE("- ~EventTimer()");
 }
 
-void EventTimer::close_evfd() {
-  SPDLOG_TRACE("+ EventTimer::close_evfd()");
+// ---------------------------------------------------------------------------
+// Internal helpers — called with s_mutex already held by the caller.
+// ---------------------------------------------------------------------------
+
+void EventTimer::_close_evfd_locked() {
+  SPDLOG_TRACE("+ EventTimer::_close_evfd_locked()");
   close(evfd);
   evfd = -1;
-  SPDLOG_TRACE("- EventTimer::close_evfd()");
+  SPDLOG_TRACE("- EventTimer::_close_evfd_locked()");
+}
+
+void EventTimer::_watch_fd_locked(int fd,
+                                  uint32_t events,
+                                  struct timer_task* task) {
+  if (evfd < 0) {
+    spdlog::critical("_watch_fd_locked: evfd is invalid. Ignored.");
+    return;
+  }
+
+  struct epoll_event ep{};
+  ep.events = events;
+  ep.data.ptr = task;
+  if (epoll_ctl(evfd, EPOLL_CTL_ADD, fd, &ep) < 0) {
+    spdlog::critical("_watch_fd: epoll_ctl(EPOLL_CTL_ADD, fd={}) failed: {}",
+                     fd, strerror(errno));
+    return;
+  }
+  watched_fd++;
+}
+
+void EventTimer::_unwatch_fd_locked(int fd) {
+  if (evfd < 0) {
+    spdlog::critical("_unwatch_fd_locked: evfd is invalid. Ignored.");
+    return;
+  }
+  if (epoll_ctl(evfd, EPOLL_CTL_DEL, fd, nullptr) < 0) {
+    spdlog::error("_unwatch_fd: epoll_ctl(EPOLL_CTL_DEL, fd={}) failed: {}", fd,
+                  strerror(errno));
+    return;
+  }
+  watched_fd--;
+}
+
+// ---------------------------------------------------------------------------
+// Public / legacy entry-points — acquire s_mutex and delegate to locked impl.
+// ---------------------------------------------------------------------------
+
+void EventTimer::close_evfd() {
+  std::lock_guard lock(s_mutex);
+  _close_evfd_locked();
+}
+
+void EventTimer::_watch_fd(int fd, uint32_t events, struct timer_task* task) {
+  std::lock_guard lock(s_mutex);
+  _watch_fd_locked(fd, events, task);
+}
+
+void EventTimer::_unwatch_fd(int fd) {
+  std::lock_guard lock(s_mutex);
+  _unwatch_fd_locked(fd);
+}
+
+void EventTimer::watch_timerfd() {
+  SPDLOG_TRACE("+ EventTimer::watch_timerfd()");
+  m_task.run = EventTimer::run;
+  m_task.data = reinterpret_cast<void*>(this);
+  _watch_fd(m_timerfd, EPOLLIN, &m_task);
+  SPDLOG_TRACE("- EventTimer::watch_timerfd()");
+}
+
+void EventTimer::unwatch_timerfd() const {
+  SPDLOG_TRACE("+ EventTimer::unwatch_timerfd()");
+  _unwatch_fd(m_timerfd);
+  SPDLOG_TRACE("- EventTimer::unwatch_timerfd()");
+}
+
+void EventTimer::wait_event() {
+  // Snapshot evfd under the lock; the actual epoll_wait runs outside to avoid
+  // blocking all other EventTimer operations for the duration of the wait.
+  int local_evfd;
+  {
+    std::lock_guard lock(s_mutex);
+    local_evfd = evfd;
+  }
+  if (local_evfd < 0)
+    return;
+
+  epoll_event ep[10];
+  const auto ready = epoll_wait(local_evfd, ep, std::size(ep), 0);
+  for (auto i = 0; i < ready; i++) {
+    const auto task = static_cast<struct timer_task*>(ep[i].data.ptr);
+    task->run(task, ep[i].events);
+  }
 }
 
 void EventTimer::set_timerspec(int32_t rate, int32_t delay) {
@@ -126,69 +238,6 @@ void EventTimer::disarm() const {
   _arm(m_timerfd, &timerspec);
 
   SPDLOG_TRACE("- EventTimer::disarm()");
-}
-
-void EventTimer::_watch_fd(int fd, uint32_t events, struct timer_task* task) {
-  struct epoll_event ep{};
-
-  if (evfd < 0) {
-    spdlog::critical("Unexpected call _watch_fd(). Ignored.");
-    return;
-  }
-
-  ep.events = events;
-  ep.data.ptr = task;
-  if (epoll_ctl(evfd, EPOLL_CTL_ADD, fd, &ep) < 0) {
-    // Do NOT increment watched_fd — the fd was never registered, so the
-    // destructor's "if (watched_fd == 0) close_evfd()" guard must not be
-    // skewed, and the paired _unwatch_fd must not attempt a DEL for an fd
-    // that epoll does not know about.
-    spdlog::critical("_watch_fd: epoll_ctl(EPOLL_CTL_ADD, fd={}) failed: {}",
-                     fd, strerror(errno));
-    return;
-  }
-  watched_fd++;
-}
-
-void EventTimer::watch_timerfd() {
-  SPDLOG_TRACE("+ EventTimer::watch_timerfd()");
-  m_task.run = EventTimer::run;
-  m_task.data = reinterpret_cast<void*>(this);
-
-  _watch_fd(m_timerfd, EPOLLIN, &m_task);
-  SPDLOG_TRACE("- EventTimer::watch_timerfd()");
-}
-
-void EventTimer::_unwatch_fd(int fd) {
-  if (evfd < 0) {
-    spdlog::critical("Unexpected call _unwatch_fd(). Ignored.");
-    return;
-  }
-  if (epoll_ctl(evfd, EPOLL_CTL_DEL, fd, nullptr) < 0) {
-    // Do NOT decrement watched_fd — the fd is still registered in the epoll
-    // instance (zombie entry), so closing evfd based on a zeroed count would
-    // be premature and would leave other live timers without an epoll fd.
-    spdlog::error("_unwatch_fd: epoll_ctl(EPOLL_CTL_DEL, fd={}) failed: {}",
-                  fd, strerror(errno));
-    return;
-  }
-  watched_fd--;
-}
-
-void EventTimer::unwatch_timerfd() const {
-  SPDLOG_TRACE("+ EventTimer::unwatch_timerfd()");
-  _unwatch_fd(m_timerfd);
-  SPDLOG_TRACE("- EventTimer::unwatch_timerfd()");
-}
-
-void EventTimer::wait_event() {
-  epoll_event ep[10];
-
-  const auto ready = epoll_wait(evfd, ep, std::size(ep), 0);
-  for (auto i = 0; i < ready; i++) {
-    const auto task = static_cast<struct timer_task*>(ep[i].data.ptr);
-    task->run(task, ep[i].events);
-  }
 }
 
 void EventTimer::run(timer_task const* task, uint32_t events) {
