@@ -744,7 +744,13 @@ bool WaylandVulkanBackend::PresentCallback(
   // command buffer Record vkCmdPipelineBarrier at the end of your render pass
   // command buffer
 
-  // Submit the command buffer and signal the semaphore
+  // Submit the command buffer and signal the semaphore.
+  // The return value MUST be checked: a failed submit leaves
+  // present_transition_semaphore_ unsignalled.  vkQueuePresentKHR would then
+  // block indefinitely waiting on it, hanging the render thread.
+  // NOTE: CHECK_VK_RESULT (throws vk::SystemError) cannot be used here because
+  // PresentCallback is a plain C callback; an uncaught exception crossing the
+  // C ABI boundary into Flutter engine code is undefined behaviour.
   VkSubmitInfo submit_info{};
   submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   submit_info.commandBufferCount = 1;
@@ -752,7 +758,14 @@ bool WaylandVulkanBackend::PresentCallback(
       &b->present_transition_buffers_[b->last_image_index_];
   submit_info.signalSemaphoreCount = 1;
   submit_info.pSignalSemaphores = &b->present_transition_semaphore_;
-  d.vkQueueSubmit(b->queue_, 1, &submit_info, nullptr);
+  if (const VkResult submit_result =
+          d.vkQueueSubmit(b->queue_, 1, &submit_info, nullptr);
+      submit_result != VK_SUCCESS) {
+    spdlog::error("PresentCallback: vkQueueSubmit failed: {}",
+                  static_cast<int>(submit_result));
+    // Do NOT call vkQueuePresentKHR — the semaphore was never signalled.
+    return false;
+  }
 
   // Wait on the signaled semaphore in vkQueuePresentKHR
   VkPresentInfoKHR present_info{};
