@@ -23,11 +23,26 @@
 TaskRunner::TaskRunner(std::string name, FlutterEngine& engine)
     : name_(std::move(name)),
       engine_(engine),
+      pthread_self_(0),
       io_context_(std::make_unique<asio::io_context>(ASIO_CONCURRENCY_HINT_1)),
       work_(io_context_->get_executor()),
       strand_(std::make_unique<asio::io_context::strand>(*io_context_)),
       pri_queue_(std::make_unique<handler_priority_queue>()) {
-  thread_ = std::thread([&]() {
+  // Use a promise/future to synchronously capture the worker thread's
+  // pthread_t before the constructor returns.  This eliminates the window
+  // where IsThreadEqual could be called before pthread_self_ was written, and
+  // removes the asio::post that previously wrote it asynchronously (which was
+  // both a data race and an uninitialized-read hazard).
+  std::promise<pthread_t> tid_promise;
+  auto tid_future = tid_promise.get_future();
+
+  thread_ = std::thread([this, &tid_promise]() {
+    // Store with release ordering so any subsequent acquire load in
+    // IsThreadEqual is guaranteed to observe this value.
+    const pthread_t tid = pthread_self();
+    pthread_self_.store(tid, std::memory_order_release);
+    tid_promise.set_value(tid);
+
     while (io_context_->run_one()) {
       // The custom invocation hook adds the handlers to the priority queue
       // rather than executing them from within the poll_one() call.
@@ -38,10 +53,10 @@ TaskRunner::TaskRunner(std::string name, FlutterEngine& engine)
     }
   });
 
-  asio::post(*strand_, [&]() {
-    pthread_self_ = pthread_self();
-    spdlog::debug("{} Task Runner, thread_id=0x{:x}", name_, pthread_self_);
-  });
+  // Block until the worker thread has stored its pthread_t.  After this point
+  // IsThreadEqual is safe to call from any thread.
+  const pthread_t tid = tid_future.get();
+  spdlog::debug("{} Task Runner, thread_id=0x{:x}", name_, tid);
 }
 
 TaskRunner::~TaskRunner() {

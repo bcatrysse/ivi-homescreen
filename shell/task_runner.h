@@ -16,8 +16,10 @@
 
 #pragma once
 
+#include <atomic>
 #include <future>
 #include <memory>
+#include <pthread.h>
 
 #include "asio/executor_work_guard.hpp"
 #include "asio/io_context.hpp"
@@ -37,7 +39,8 @@ class TaskRunner {
   static pthread_t GetThreadId() { return pthread_self(); };
 
   [[nodiscard]] bool IsThreadEqual(const pthread_t threadid) const {
-    return pthread_equal(threadid, pthread_self_) != 0;
+    return pthread_equal(threadid,
+                         pthread_self_.load(std::memory_order_acquire)) != 0;
   };
 
   void QueueFlutterTask(size_t index,
@@ -62,8 +65,12 @@ class TaskRunner {
  private:
   std::string name_;
   FlutterEngine& engine_;
+  // pthread_self_ is written once by the worker thread immediately on startup
+  // and read from arbitrary threads via IsThreadEqual.  It must be atomic to
+  // avoid a data race, and is value-initialized to 0 so IsThreadEqual always
+  // returns a defined (wrong) answer rather than UB before the first store.
+  std::atomic<pthread_t> pthread_self_;
   std::thread thread_;
-  pthread_t pthread_self_;
   std::unique_ptr<asio::io_context> io_context_;
   asio::executor_work_guard<decltype(io_context_->get_executor())> work_;
   std::unique_ptr<asio::io_context::strand> strand_;
