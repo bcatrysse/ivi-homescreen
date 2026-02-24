@@ -96,8 +96,8 @@ void PlatformViewsHandler::HandleMethodCall(
       }
     }
 
-    if (listeners_.find(id) != listeners_.end()) {
-      auto [fst, snd] = listeners_[id];
+    if (const auto it = listeners_.find(id); it != listeners_.end()) {
+      auto [fst, snd] = it->second;
       if (auto callbacks = fst; callbacks->dispose) {
         callbacks->dispose(hybrid, snd);
       }
@@ -137,8 +137,8 @@ void PlatformViewsHandler::HandleMethodCall(
       }
     }
 
-    if (listeners_.find(id) != listeners_.end()) {
-      auto [fst, snd] = listeners_[id];
+    if (const auto it = listeners_.find(id); it != listeners_.end()) {
+      auto [fst, snd] = it->second;
       if (auto callbacks = fst; callbacks->resize) {
         callbacks->resize(width, height, snd);
       }
@@ -176,8 +176,8 @@ void PlatformViewsHandler::HandleMethodCall(
             kMethodSetDirection, *arguments);
       }
     }
-    if (listeners_.find(id) != listeners_.end()) {
-      auto [fst, snd] = listeners_[id];
+    if (const auto it = listeners_.find(id); it != listeners_.end()) {
+      auto [fst, snd] = it->second;
       if (auto callbacks = fst; callbacks->set_direction) {
         callbacks->set_direction(direction, snd);
       }
@@ -218,8 +218,8 @@ void PlatformViewsHandler::HandleMethodCall(
                                                              *arguments);
       }
     }
-    if (listeners_.find(id) != listeners_.end()) {
-      auto [fst, snd] = listeners_[id];
+    if (const auto it = listeners_.find(id); it != listeners_.end()) {
+      auto [fst, snd] = it->second;
       if (auto callbacks = fst; callbacks->set_offset) {
         callbacks->set_offset(left, top, snd);
       }
@@ -240,9 +240,9 @@ void PlatformViewsHandler::HandleMethodCall(
     }
     const auto touch = PlatformViewTouch(*params);
     SPDLOG_TRACE("PlatformViewTouch id: {}", touch.getId());
-    if (const auto id = touch.getId();
-        listeners_.find(id) != listeners_.end()) {
-      auto [fst, snd] = listeners_[id];
+    const auto id = touch.getId();
+    if (const auto it = listeners_.find(id); it != listeners_.end()) {
+      auto [fst, snd] = it->second;
       if (const auto callbacks = fst; callbacks->on_touch) {
         callbacks->on_touch(touch.getAction(), touch.getPointerCount(),
                             touch.getRawPointerCoords().size(),
@@ -272,8 +272,8 @@ void PlatformViewsHandler::HandleMethodCall(
             kMethodAcceptGesture, *arguments);
       }
     }
-    if (listeners_.find(id) != listeners_.end()) {
-      auto [fst, snd] = listeners_[id];
+    if (const auto it = listeners_.find(id); it != listeners_.end()) {
+      auto [fst, snd] = it->second;
       if (const auto callbacks = fst; callbacks->accept_gesture) {
         callbacks->accept_gesture(id);
       }
@@ -300,8 +300,8 @@ void PlatformViewsHandler::HandleMethodCall(
             kMethodRejectGesture, *arguments);
       }
     }
-    if (listeners_.find(id) != listeners_.end()) {
-      auto [fst, snd] = listeners_[id];
+    if (const auto it = listeners_.find(id); it != listeners_.end()) {
+      auto [fst, snd] = it->second;
       if (auto callbacks = fst; callbacks->reject_gesture) {
         callbacks->reject_gesture(id);
       }
