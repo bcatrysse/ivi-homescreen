@@ -115,7 +115,7 @@ class AccessibilityTree {
   // If the index is out of bounds, returns nullptr.
   [[nodiscard]] AccessibilityNode* GetNodeByIdx(const int32_t idx) const {
     return (idx >= 0 && static_cast<size_t>(idx) < nodes.size())
-               ? nodes[static_cast<size_t>(idx)]
+               ? nodes[static_cast<size_t>(idx)].get()
                : nullptr;
   }
 
@@ -152,8 +152,10 @@ class AccessibilityTree {
 
  private:
   bool tree_built = false;  // Flag indicating if the tree is built.
-  std::vector<AccessibilityNode*> nodes;  // List of nodes in the tree.
-  int32_t focused_node;                   // ID of the currently focused node.
+  // Owned nodes — unique_ptr ensures each AccessibilityNode is deleted when the
+  // tree is destroyed or a node is removed, with no manual delete required.
+  std::vector<std::unique_ptr<AccessibilityNode>> nodes;
+  int32_t focused_node;  // ID of the currently focused node.
 
 #if ENABLE_ACCESSKIT
   accesskit_unix_adapter* adapter{} {};  // AccessKit adapter for Unix systems.

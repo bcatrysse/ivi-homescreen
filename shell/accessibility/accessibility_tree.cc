@@ -58,6 +58,9 @@ AccessibilityNode::AccessibilityNode(const FlutterSemanticsNode2& fl_node)
 }
 
 AccessibilityTree::AccessibilityTree() : focused_node(0) {}
+// The defaulted destructor is sufficient: each element of `nodes` is a
+// std::unique_ptr<AccessibilityNode>, so every node is automatically deleted
+// when the vector is destroyed — no manual cleanup needed.
 AccessibilityTree::~AccessibilityTree() = default;
 
 void AccessibilityTree::HandleFlutterUpdate(
@@ -117,16 +120,17 @@ AccessibilityNode* AccessibilityTree::GetNode(
   // Determine if node already created and return it
   for (const auto& node : nodes) {
     if (node->GetId() == fl_node.id) {
-      return node;
+      return node.get();
     }
   }
 
-  auto new_node = new AccessibilityNode(fl_node);
-  nodes.emplace_back(new_node);
+  // make_unique allocates and immediately transfers ownership into the vector,
+  // so there is no window in which an exception could cause a leak.
+  auto& owned = nodes.emplace_back(std::make_unique<AccessibilityNode>(fl_node));
   SPDLOG_TRACE(
       "New AccessibilityNode created with ID: {}, number of nodes: {}",
-      new_node->GetId(), nodes.size());
-  return nodes.back();
+      owned->GetId(), nodes.size());
+  return owned.get();
 }
 
 void AccessibilityTree::DumpTree(const char* target_file) const {
