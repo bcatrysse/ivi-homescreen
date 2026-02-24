@@ -71,8 +71,10 @@ Engine::Engine(FlutterView* view,
   /// libflutter_engine.so loading
   ///
   if (bundle_path.empty()) {
-    spdlog::critical("Specify bundle folder using --b= option");
-    exit(EXIT_FAILURE);
+    // throw instead of exit(): exit() is called from the Engine constructor,
+    // bypassing destructors for all already-constructed members.
+    throw std::invalid_argument(
+        "Engine: bundle_path must not be empty — use --b= to specify it");
   }
 
   // override path
@@ -86,8 +88,13 @@ Engine::Engine(FlutterView* view,
   }
 
   if (!LibFlutterEngine::IsPresent(engine_file_path.c_str())) {
-    spdlog::critical(dlerror());
-    exit(-1);
+    const auto dl_err = dlerror();
+    const auto msg = fmt::format("({}) Engine: libflutter_engine.so not found "
+                                 "at {}: {}", m_index,
+                                 engine_file_path.string(),
+                                 dl_err ? dl_err : "unknown error");
+    spdlog::critical(msg);
+    throw std::runtime_error(msg);
   }
 
   ///
@@ -136,9 +143,11 @@ Engine::Engine(FlutterView* view,
     std::filesystem::path kernel_snapshot = m_assets_path;
     kernel_snapshot /= "kernel_blob.bin";
     if (!exists(kernel_snapshot)) {
-      spdlog::critical("({}) {} missing Flutter Kernel\0", m_index,
-                       kernel_snapshot.c_str());
-      exit(EXIT_FAILURE);
+      // \0 removed from format string — it truncated the message in fmt v10.
+      const auto msg = fmt::format("({}) Engine: missing Flutter kernel: {}",
+                                   m_index, kernel_snapshot.string());
+      spdlog::critical(msg);
+      throw std::runtime_error(msg);
     }
   }
 
@@ -328,8 +337,11 @@ std::string Engine::GetFilePath(size_t index) {
 
   if (!std::filesystem::is_directory(path) || !std::filesystem::exists(path)) {
     if (!std::filesystem::create_directories(path)) {
-      spdlog::critical("({}) create_directories failed: {}", index, path);
-      exit(EXIT_FAILURE);
+      const auto msg = fmt::format("({}) Engine::GetFilePath: "
+                                   "create_directories failed: {}",
+                                   index, path);
+      spdlog::critical(msg);
+      throw std::runtime_error(msg);
     }
   }
 

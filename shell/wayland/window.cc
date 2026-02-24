@@ -65,8 +65,12 @@ WaylandWindow::WaylandWindow(const size_t index,
   auto ivi_application = m_display->GetIviApplication();
   if (ivi_application) {
     if (m_ivi_surface_id == 0) {
-      spdlog::critical("IVI Surface ID not set");
-      exit(EXIT_FAILURE);
+      // throw instead of exit(): exit() is called from the WaylandWindow
+      // constructor, bypassing destructors for the already-created
+      // m_base_surface and other constructed members.
+      throw std::logic_error(
+          "WaylandWindow: IVI surface ID is 0 — set ivi-surface-id in "
+          "the configuration before using the IVI shell client");
     }
     m_ivi_surface = ivi_application_surface_create(
         ivi_application, m_ivi_surface_id, m_base_surface);

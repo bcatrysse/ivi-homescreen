@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
+#include <stdexcept>
 #include <utility>
 
 #include "config/common.h"
@@ -59,9 +60,12 @@ Display::Display(const bool enable_cursor,
 
   m_display = wl_display_connect(nullptr);
   if (m_display == nullptr) {
-    spdlog::critical("Failed to connect to Wayland display. {}",
-                     strerror(errno));
-    exit(-1);
+    const auto msg = fmt::format("Display: wl_display_connect failed: {}",
+                                 strerror(errno));
+    spdlog::critical(msg);
+    // throw instead of exit(): exit() is called from the Display constructor,
+    // bypassing destructors for all already-constructed members.
+    throw std::runtime_error(msg);
   }
 
   m_registry = wl_display_get_registry(m_display);
@@ -76,9 +80,9 @@ Display::Display(const bool enable_cursor,
         continue;
     }
     if (!m_agl.bound_ok) {
-      spdlog::critical(
-          "agl_shell extension already in use by other shell client.");
-      exit(EXIT_FAILURE);
+      throw std::runtime_error(
+          "Display: agl_shell extension already in use by another shell "
+          "client — only one shell client may bind agl_shell at a time");
     }
   }
 

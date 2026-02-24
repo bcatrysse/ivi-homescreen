@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <optional>
 #include <queue>
+#include <stdexcept>
 
 #include "config/common.h"
 #include "engine.h"
@@ -158,9 +159,9 @@ void WaylandVulkanBackend::createInstance() {
   }
 
   if (!surfaceSupported_ || !waylandSurfaceSupported_) {
-    spdlog::critical(
-        "This Vulkan driver does not support the minimum required extensions");
-    exit(EXIT_FAILURE);
+    throw std::runtime_error(
+        "WaylandVulkanBackend: Vulkan driver does not support the minimum "
+        "required extensions (VK_KHR_surface + VK_KHR_wayland_surface)");
   }
 
   std::stringstream ss;
@@ -427,8 +428,9 @@ void WaylandVulkanBackend::findPhysicalDevice() {
   }
 
   if (physical_device_ == nullptr) {
-    spdlog::critical("Failed to find a compatible Vulkan physical device.");
-    exit(EXIT_FAILURE);
+    throw std::runtime_error(
+        "WaylandVulkanBackend: no compatible Vulkan physical device found — "
+        "requires a device supporting graphics, present, and VK_KHR_swapchain");
   }
 }
 
@@ -882,8 +884,9 @@ void WaylandVulkanBackend::CreateSurface(size_t /* index */,
                                         &swapchain_command_pool_));
 
   if (!InitializeSwapChain()) {
-    spdlog::critical("Failed to create swap chain.");
-    exit(EXIT_FAILURE);
+    throw std::runtime_error(
+        "WaylandVulkanBackend: swap chain initialisation failed — "
+        "check surface format support and display dimensions");
   }
 }
 
