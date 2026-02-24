@@ -16,6 +16,7 @@
 
 #include "libflutter_engine.h"
 
+#include <cstdlib>
 #include <iostream>
 
 #include <dlfcn.h>
@@ -118,8 +119,28 @@ LibFlutterEngineExports* LibFlutterEngine::loadExports(
     {
       lib = RTLD_DEFAULT;
     } else {
+      // RTLD_NOW: resolve all symbols in libflutter_engine.so's transitive
+      // dependencies immediately at dlopen time.  RTLD_LAZY would defer
+      // resolution of those internal relocations until first use, meaning
+      // a missing dependency symbol would only surface as a segfault or
+      // cryptic PLT error at an arbitrary call site rather than here with a
+      // clear dlerror() message.
+      //
+      // RTLD_LOCAL: keep the library's symbols out of the global namespace to
+      // avoid collisions with other loaded libraries.  We resolve every
+      // symbol we need explicitly via dlsym / ShellGetFuncAddress, so global
+      // visibility is unnecessary.
       lib = dlopen(library_path ? library_path : "libflutter_engine.so",
-                   RTLD_LAZY | RTLD_LOCAL);
+                   RTLD_NOW | RTLD_LOCAL);
+      if (lib == nullptr) {
+        // Capture the OS-level failure reason (no such file, missing
+        // dependency, permission denied, etc.) before any subsequent call
+        // clears dlerror().  std::cerr is used because spdlog may not be
+        // initialised at this point (loadExports runs as part of static
+        // initialisation via the operator-> / IsPresent call chain).
+        std::cerr << "[FATAL] dlopen(libflutter_engine.so) failed: "
+                  << dlerror() << "\n";
+      }
     }
 
     return LibFlutterEngineExports(lib);
