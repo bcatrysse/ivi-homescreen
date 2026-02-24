@@ -705,19 +705,24 @@ VKAPI_ATTR VkBool32 VKAPI_CALL WaylandVulkanBackend::debugUtilsCallback(
     const VkDebugUtilsMessengerCallbackDataEXT* cb_data,
     void* /* pUserData */) {
   if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
-    spdlog::info("Vulkan Dbg: ({}) {}", cb_data->pMessageIdName,
-                 cb_data->pMessage);
+    spdlog::debug("Vulkan Dbg: ({}) {}", cb_data->pMessageIdName,
+                  cb_data->pMessage);
   } else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT) {
     spdlog::info("Vulkan Dbg: ({}) {}", cb_data->pMessageIdName,
                  cb_data->pMessage);
   } else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-    spdlog::info("Vulkan Dbg: ({}) {}", cb_data->pMessageIdName,
+    spdlog::warn("Vulkan Dbg: ({}) {}", cb_data->pMessageIdName,
                  cb_data->pMessage);
   } else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
     spdlog::error("Vulkan Dbg: ({}) {}", cb_data->pMessageIdName,
                   cb_data->pMessage);
   }
-  return VK_TRUE;
+  // The Vulkan spec (VK_EXT_debug_utils) requires callbacks to return
+  // VK_FALSE.  Returning VK_TRUE signals the validation layer to abort the
+  // Vulkan call that triggered the message — a behaviour reserved for the
+  // layer's own internal use and undefined when returned by application
+  // callbacks.
+  return VK_FALSE;
 }
 
 FlutterVulkanImage WaylandVulkanBackend::GetNextImageCallback(
