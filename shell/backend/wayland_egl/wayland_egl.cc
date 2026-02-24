@@ -107,7 +107,7 @@ FlutterRendererConfig WaylandEglBackend::GetRenderConfig() {
                     .width = target->width,
                     .height = target->height};
     target->visible_width = width;
-    target->visible_width = height;
+    target->visible_height = height;
     return true;
   };
 
