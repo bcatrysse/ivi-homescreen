@@ -449,7 +449,8 @@ void Display::pointer_handle_enter(void* data,
   {
     std::lock_guard lock(d->m_engine_mutex);
     d->m_active_surface = surface;
-    d->m_active_engine = d->m_surface_engine_map[surface];
+    const auto it = d->m_surface_engine_map.find(surface);
+    d->m_active_engine = (it != d->m_surface_engine_map.end()) ? it->second : nullptr;
     engine = d->m_active_engine;
   }
 
@@ -619,7 +620,8 @@ void Display::keyboard_handle_enter(void* data,
   {
     std::lock_guard lock(d->m_engine_mutex);
     d->m_active_surface = surface;
-    d->m_active_engine = d->m_surface_engine_map[surface];
+    const auto it = d->m_surface_engine_map.find(surface);
+    d->m_active_engine = (it != d->m_surface_engine_map.end()) ? it->second : nullptr;
   }
   SPDLOG_TRACE("- Display::keyboard_handle_enter()");
 }
@@ -815,7 +817,8 @@ void Display::touch_handle_down(void* data,
   {
     std::lock_guard lock(d->m_engine_mutex);
     d->m_active_surface = surface;
-    d->m_touch_engine = d->m_surface_engine_map[surface];
+    const auto it = d->m_surface_engine_map.find(surface);
+    d->m_touch_engine = (it != d->m_surface_engine_map.end()) ? it->second : nullptr;
     engine = d->m_touch_engine;
   }
   if (engine) {

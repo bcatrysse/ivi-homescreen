@@ -485,6 +485,15 @@ bool WaylandVulkanBackend::InitializeSwapChain() {
   uint32_t format_count;
   CHECK_VK_RESULT(d.vkGetPhysicalDeviceSurfaceFormatsKHR(
       physical_device_, surface_, &format_count, nullptr));
+  // A zero format count means the surface has no presentable formats — this
+  // can happen when the surface is lost or in a degraded state.  Accessing
+  // formats[0] on an empty vector is undefined behaviour.
+  if (format_count == 0) {
+    spdlog::critical(
+        "InitializeSwapChain: vkGetPhysicalDeviceSurfaceFormatsKHR returned "
+        "zero formats — surface may be lost or incompatible");
+    return false;
+  }
   std::vector<VkSurfaceFormatKHR> formats(format_count);
   CHECK_VK_RESULT(d.vkGetPhysicalDeviceSurfaceFormatsKHR(
       physical_device_, surface_, &format_count, formats.data()));
@@ -550,12 +559,21 @@ bool WaylandVulkanBackend::InitializeSwapChain() {
   uint32_t mode_count;
   CHECK_VK_RESULT(d.vkGetPhysicalDeviceSurfacePresentModesKHR(
       physical_device_, surface_, &mode_count, nullptr));
+  // A zero mode count is invalid per the Vulkan spec (a surface must support
+  // at least VK_PRESENT_MODE_FIFO_KHR), but guard defensively — accessing
+  // modes[0] on an empty vector is undefined behaviour.
+  if (mode_count == 0) {
+    spdlog::critical(
+        "InitializeSwapChain: vkGetPhysicalDeviceSurfacePresentModesKHR "
+        "returned zero modes — surface may be lost or incompatible");
+    return false;
+  }
   std::vector<VkPresentModeKHR> modes(mode_count);
   CHECK_VK_RESULT(d.vkGetPhysicalDeviceSurfacePresentModesKHR(
       physical_device_, surface_, &mode_count, modes.data()));
-  assert(!formats.empty());  // Shouldn't be possible.
 
-  // If the preferred mode isn't available, just choose the first one.
+  // If the preferred mode isn't available, fall back to FIFO (the only mode
+  // the Vulkan spec guarantees every surface supports).
   VkPresentModeKHR present_mode = modes[0];
   for (const auto& mode : modes) {
     if (mode == kPreferredPresentMode) {
