@@ -27,18 +27,17 @@ LoggingHandler::LoggingHandler(flutter::BinaryMessenger* messenger,
           "logging",
           &flutter::StandardMethodCodec::GetInstance())) {
   channel_->SetMethodCallHandler(
-      [this](const flutter::MethodCall<flutter::EncodableValue>& call,
-             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
-                 result) { HandleMethodCall(call, std::move(result)); });
+      [](const flutter::MethodCall<flutter::EncodableValue>& call,
+         const std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>&
+             result) { HandleMethodCall(call, result); });
 }
 
 void LoggingHandler::HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue>& method_call,
-    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result)
-    const {
-  const std::string& method = method_call.method_name();
-
-  if (method == "get_logging_callback_fptr") {
+    const std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>&
+        result) {
+  if (const std::string& method = method_call.method_name();
+      method == "get_logging_callback_fptr") {
     const flutter::EncodableValue value(
         reinterpret_cast<int64_t>(&LoggingHandler::OnLogMessage));
     result->Success(flutter::EncodableValue(value));

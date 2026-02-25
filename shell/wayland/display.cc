@@ -336,11 +336,11 @@ void Display::display_handle_mode(void* data,
 
 void Display::display_handle_scale(void* data,
                                    struct wl_output* /* wl_output */,
-                                   int32_t factor) {
+                                   int32_t scale) {
   auto* oi = static_cast<output_info_t*>(data);
-  oi->scale = factor;
+  oi->scale = scale;
 
-  SPDLOG_DEBUG("Display Scale Factor: {}", factor);
+  SPDLOG_DEBUG("Display Scale Factor: {}", scale);
 }
 
 void Display::display_handle_done(void* data,
@@ -1144,7 +1144,7 @@ void Display::agl_shell_bound_fail(void* data, struct agl_shell* shell) {
   d->m_agl.bound_ok = false;
 }
 
-void Display::addAppToStack(std::string app_id) {
+void Display::addAppToStack(const std::string& app_id) {
   if (app_id == "homescreen")
     return;
 
@@ -1163,7 +1163,7 @@ void Display::addAppToStack(std::string app_id) {
   }
 }
 
-int Display::find_output_by_name(std::string output_name) {
+int Display::find_output_by_name(const std::string& output_name) const {
   int index = 0;
   for (const auto& i : m_all_outputs) {
     if (i->name == output_name) {
@@ -1245,7 +1245,7 @@ void Display::deactivateApp(const std::string& app_id) {
 }
 
 void Display::processAppStatusEvent(const char* app_id,
-                                    const std::string event_type) {
+                                    const std::string& event_type) {
   if (!m_agl.shell)
     return;
 
@@ -1280,9 +1280,9 @@ void Display::agl_shell_app_on_output(void* data,
   //
   // finally if the outputs are identical probably that's an user-error -
   // but the compositor won't activate it again, so we don't handle that.
-  std::pair new_pending_app =
+  const auto new_pending_app =
       std::pair(std::string(app_id), std::string(output_name));
-  d->pending_app_list.push_back(new_pending_app);
+  d->pending_app_list.emplace_back(new_pending_app);
 
   auto iter = d->apps_stack.begin();
   while (iter != d->apps_stack.end()) {
@@ -1292,14 +1292,14 @@ void Display::agl_shell_app_on_output(void* data,
       d->processAppStatusEvent(app_id, std::string("started"));
       break;
     }
-    iter++;
+    ++iter;
   }
 }
 
 void Display::agl_shell_app_state(void* data,
                                   struct agl_shell* /* agl_shell */,
                                   const char* app_id,
-                                  uint32_t state) {
+                                  const uint32_t state) {
   auto* d = static_cast<Display*>(data);
 
   switch (state) {
