@@ -89,10 +89,10 @@ Engine::Engine(FlutterView* view,
 
   if (!LibFlutterEngine::IsPresent(engine_file_path.c_str())) {
     const auto dl_err = dlerror();
-    const auto msg = fmt::format("({}) Engine: libflutter_engine.so not found "
-                                 "at {}: {}", m_index,
-                                 engine_file_path.string(),
-                                 dl_err ? dl_err : "unknown error");
+    const auto msg = fmt::format(
+        "({}) Engine: libflutter_engine.so not found "
+        "at {}: {}",
+        m_index, engine_file_path.string(), dl_err ? dl_err : "unknown error");
     throw std::runtime_error(msg);
   }
 
@@ -115,9 +115,10 @@ Engine::Engine(FlutterView* view,
     m_icu_data_path /= kSystemIcudtl;
   }
   if (!exists(m_icu_data_path)) {
-    const auto msg = fmt::format("({}) icudtl.dat not found at {}; "
-                                 "cannot initialise ICU", m_index,
-                                 m_icu_data_path.string());
+    const auto msg = fmt::format(
+        "({}) icudtl.dat not found at {}; "
+        "cannot initialise ICU",
+        m_index, m_icu_data_path.string());
     spdlog::critical(msg);
     // throw instead of assert(false): assert is stripped in -DNDEBUG builds,
     // allowing the constructor to continue with an invalid icu_data_path and
@@ -186,14 +187,15 @@ Engine::~Engine() {
       if (LibFlutterEngine->CollectAOTData) {
         LibFlutterEngine->CollectAOTData(m_aot_data);
       } else {
-        spdlog::error("({}) CollectAOTData function pointer is null — "
-                      "AOT data will not be released", m_index);
+        spdlog::error(
+            "({}) CollectAOTData function pointer is null — "
+            "AOT data will not be released",
+            m_index);
       }
     }
   }
   m_platform_task_runner.reset();
 }
-
 
 FlutterEngineResult Engine::Shutdown() const {
   if (!m_flutter_engine) {
@@ -310,9 +312,8 @@ FlutterEngineResult Engine::SetPixelRatio(double pixel_ratio) {
   const auto result =
       LibFlutterEngine->SendWindowMetricsEvent(m_flutter_engine, &fwme);
   if (result != kSuccess) {
-    spdlog::critical(
-        "({}) Failed to send pixel ratio to flutter (ratio={})",
-        m_index, pixel_ratio);
+    spdlog::critical("({}) Failed to send pixel ratio to flutter (ratio={})",
+                     m_index, pixel_ratio);
     return result;
   }
 
@@ -329,9 +330,10 @@ std::string Engine::GetFilePath(size_t index) {
 
   if (!std::filesystem::is_directory(path) || !std::filesystem::exists(path)) {
     if (!std::filesystem::create_directories(path)) {
-      const auto msg = fmt::format("({}) Engine::GetFilePath: "
-                                   "create_directories failed: {}",
-                                   index, path);
+      const auto msg = fmt::format(
+          "({}) Engine::GetFilePath: "
+          "create_directories failed: {}",
+          index, path);
       spdlog::critical(msg);
       throw std::runtime_error(msg);
     }
@@ -586,8 +588,8 @@ void Engine::SendPointerEvents() {
     m_pointer_events.reserve(kMaxPointerEvent);
   }
 
-  LibFlutterEngine->SendPointerEvent(
-      m_flutter_engine, events_to_send.data(), events_to_send.size());
+  LibFlutterEngine->SendPointerEvent(m_flutter_engine, events_to_send.data(),
+                                     events_to_send.size());
 }
 
 FlutterEngineAOTData Engine::LoadAotData(const std::string& bundle_path) const {
@@ -606,9 +608,10 @@ FlutterEngineAOTData Engine::LoadAotData(const std::string& bundle_path) const {
 
   FlutterEngineAOTData data;
   if (!LibFlutterEngine->CreateAOTData) {
-    spdlog::critical("({}) CreateAOTData function pointer is null — "
-                     "cannot load AOT data from: {}", m_index,
-                     aot_data_path.c_str());
+    spdlog::critical(
+        "({}) CreateAOTData function pointer is null — "
+        "cannot load AOT data from: {}",
+        m_index, aot_data_path.c_str());
     return nullptr;
   }
   if (kSuccess != LibFlutterEngine->CreateAOTData(&source, &data)) {

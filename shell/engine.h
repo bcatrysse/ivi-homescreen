@@ -127,7 +127,6 @@ class Engine {
    */
   [[maybe_unused]] [[nodiscard]] bool IsRunning() const;
 
-
   /**
    * @brief Get persistent cache path
    * @param[in] index Index of path (for log)

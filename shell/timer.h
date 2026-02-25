@@ -51,9 +51,9 @@ class EventTimer {
   static int ev_fd;
 
   int m_timerfd;
-  struct itimerspec m_timerspec {};
+  struct itimerspec m_timerspec{};
 
-  struct timer_task m_task {};
+  struct timer_task m_task{};
   evtimer_cb m_callback;
   void* m_callback_data;
 
@@ -127,7 +127,9 @@ class EventTimer {
   // Variants called with s_mutex already held — used by the constructor and
   // destructor to keep their entire critical section under a single lock.
   static void _close_evfd_locked();
-  static void _watch_fd_locked(int fd, uint32_t events, struct timer_task* task);
+  static void _watch_fd_locked(int fd,
+                               uint32_t events,
+                               struct timer_task* task);
   static void _unwatch_fd_locked(int fd);
 
   /**

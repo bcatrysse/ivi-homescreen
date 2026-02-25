@@ -63,8 +63,10 @@ void EglProcessResolver::Initialize() {
     } else {
       // name[0] would log only the first character of the library name —
       // use `name` (the full std::string) instead.
-      const auto msg = fmt::format("EglProcessResolver::Initialize: "
-                                   "required GL library not found: {}", name);
+      const auto msg = fmt::format(
+          "EglProcessResolver::Initialize: "
+          "required GL library not found: {}",
+          name);
       spdlog::critical(msg);
       // throw instead of assert(false): assert is stripped in -DNDEBUG builds,
       // allowing Initialize() to complete with an incomplete handle list.

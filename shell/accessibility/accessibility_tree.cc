@@ -127,10 +127,10 @@ AccessibilityNode* AccessibilityTree::GetNode(
 
   // make_unique allocates and immediately transfers ownership into the vector,
   // so there is no window in which an exception could cause a leak.
-  auto& owned = nodes.emplace_back(std::make_unique<AccessibilityNode>(fl_node));
-  SPDLOG_TRACE(
-      "New AccessibilityNode created with ID: {}, number of nodes: {}",
-      owned->GetId(), nodes.size());
+  auto& owned =
+      nodes.emplace_back(std::make_unique<AccessibilityNode>(fl_node));
+  SPDLOG_TRACE("New AccessibilityNode created with ID: {}, number of nodes: {}",
+               owned->GetId(), nodes.size());
   return owned.get();
 }
 

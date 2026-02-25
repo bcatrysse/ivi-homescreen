@@ -60,8 +60,8 @@ Display::Display(const bool enable_cursor,
 
   m_display = wl_display_connect(nullptr);
   if (m_display == nullptr) {
-    const auto msg = fmt::format("wl_display_connect failed: {}",
-                                 strerror(errno));
+    const auto msg =
+        fmt::format("wl_display_connect failed: {}", strerror(errno));
     throw std::runtime_error(msg);
   }
 
@@ -451,7 +451,8 @@ void Display::pointer_handle_enter(void* data,
     std::lock_guard lock(d->m_engine_mutex);
     d->m_active_surface = surface;
     const auto it = d->m_surface_engine_map.find(surface);
-    d->m_active_engine = (it != d->m_surface_engine_map.end()) ? it->second : nullptr;
+    d->m_active_engine =
+        (it != d->m_surface_engine_map.end()) ? it->second : nullptr;
     engine = d->m_active_engine;
   }
 
@@ -480,9 +481,8 @@ void Display::pointer_handle_leave(void* data,
     engine = d->m_active_engine;
   }
   if (engine) {
-    engine->CoalesceMouseEvent(kFlutterPointerSignalKindNone,
-                               kRemove, 0.0, 0.0, 0.0, 0.0,
-                               d->m_pointer.buttons);
+    engine->CoalesceMouseEvent(kFlutterPointerSignalKindNone, kRemove, 0.0, 0.0,
+                               0.0, 0.0, d->m_pointer.buttons);
   }
 }
 
@@ -622,7 +622,8 @@ void Display::keyboard_handle_enter(void* data,
     std::lock_guard lock(d->m_engine_mutex);
     d->m_active_surface = surface;
     const auto it = d->m_surface_engine_map.find(surface);
-    d->m_active_engine = (it != d->m_surface_engine_map.end()) ? it->second : nullptr;
+    d->m_active_engine =
+        (it != d->m_surface_engine_map.end()) ? it->second : nullptr;
   }
   SPDLOG_TRACE("- Display::keyboard_handle_enter()");
 }
@@ -650,17 +651,19 @@ void Display::keyboard_handle_keymap(void* data,
   // WL_KEYBOARD_KEYMAP_FORMAT_NO_KEYMAP) cannot be parsed by xkbcommon, so
   // close the fd and leave the existing keymap/state untouched.
   if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1) {
-    spdlog::error("keyboard_handle_keymap: unsupported keymap format {}, "
-                  "keeping existing keymap",
-                  format);
+    spdlog::error(
+        "keyboard_handle_keymap: unsupported keymap format {}, "
+        "keeping existing keymap",
+        format);
     close(fd);
     return;
   }
 
   // A zero-length mapping is invalid (mmap(2) requires length > 0).
   if (size == 0) {
-    spdlog::error("keyboard_handle_keymap: keymap size is 0, "
-                  "keeping existing keymap");
+    spdlog::error(
+        "keyboard_handle_keymap: keymap size is 0, "
+        "keeping existing keymap");
     close(fd);
     return;
   }
@@ -668,27 +671,28 @@ void Display::keyboard_handle_keymap(void* data,
   const auto keymap_string =
       static_cast<char*>(mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0));
   if (keymap_string == MAP_FAILED) {
-    spdlog::error("keyboard_handle_keymap: mmap failed ({}), "
-                  "keeping existing keymap",
-                  strerror(errno));
+    spdlog::error(
+        "keyboard_handle_keymap: mmap failed ({}), "
+        "keeping existing keymap",
+        strerror(errno));
     close(fd);
     return;
   }
 
   // Compile the new keymap before touching any existing state so that a
   // bad keymap from the compositor cannot destroy working keyboard input.
-  xkb_keymap* new_keymap =
-      xkb_keymap_new_from_string(d->m_xkb_context, keymap_string,
-                                 XKB_KEYMAP_FORMAT_TEXT_V1,
-                                 XKB_KEYMAP_COMPILE_NO_FLAGS);
+  xkb_keymap* new_keymap = xkb_keymap_new_from_string(
+      d->m_xkb_context, keymap_string, XKB_KEYMAP_FORMAT_TEXT_V1,
+      XKB_KEYMAP_COMPILE_NO_FLAGS);
 
   // mmap region and fd are no longer needed regardless of compile outcome.
   munmap(keymap_string, size);
   close(fd);
 
   if (!new_keymap) {
-    spdlog::error("keyboard_handle_keymap: xkb_keymap_new_from_string failed, "
-                  "keeping existing keymap");
+    spdlog::error(
+        "keyboard_handle_keymap: xkb_keymap_new_from_string failed, "
+        "keeping existing keymap");
     return;
   }
 
@@ -819,13 +823,14 @@ void Display::touch_handle_down(void* data,
     std::lock_guard lock(d->m_engine_mutex);
     d->m_active_surface = surface;
     const auto it = d->m_surface_engine_map.find(surface);
-    d->m_touch_engine = (it != d->m_surface_engine_map.end()) ? it->second : nullptr;
+    d->m_touch_engine =
+        (it != d->m_surface_engine_map.end()) ? it->second : nullptr;
     engine = d->m_touch_engine;
   }
   if (engine) {
     engine->CoalesceTouchEvent(FlutterPointerPhase::kDown,
-                               wl_fixed_to_double(x_w),
-                               wl_fixed_to_double(y_w), id);
+                               wl_fixed_to_double(x_w), wl_fixed_to_double(y_w),
+                               id);
   }
 }
 
@@ -866,8 +871,8 @@ void Display::touch_handle_motion(void* data,
   }
   if (engine) {
     engine->CoalesceTouchEvent(FlutterPointerPhase::kMove,
-                               wl_fixed_to_double(x_w),
-                               wl_fixed_to_double(y_w), id);
+                               wl_fixed_to_double(x_w), wl_fixed_to_double(y_w),
+                               id);
   }
 }
 
@@ -961,8 +966,9 @@ void Display::AglShellDoBackground(struct wl_surface* surface,
   if (!m_agl.shell)
     return;
   if (index >= m_all_outputs.size()) {
-    spdlog::error("AglShellDoBackground: output index {} out of range (size={})",
-                  index, m_all_outputs.size());
+    spdlog::error(
+        "AglShellDoBackground: output index {} out of range (size={})", index,
+        m_all_outputs.size());
     return;
   }
   agl_shell_set_background(m_agl.shell, surface, m_all_outputs[index]->output);
@@ -1221,9 +1227,8 @@ void Display::activateApp(std::string app_id) {
     return;
   }
 
-  agl_shell_activate_app(
-      m_agl.shell, app_id.c_str(),
-      m_all_outputs[output_idx]->output);
+  agl_shell_activate_app(m_agl.shell, app_id.c_str(),
+                         m_all_outputs[output_idx]->output);
   wl_display_flush(m_display);
 }
 

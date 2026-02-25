@@ -186,7 +186,8 @@ std::string CompositorSurface::GetFilePath(const char* folder) {
     if (!std::filesystem::create_directories(path)) {
       throw std::logic_error(
           fmt::format("CompositorSurface::GetFilePath: "
-                      "create_directories failed for: {}", path.string()));
+                      "create_directories failed for: {}",
+                      path.string()));
     }
   }
 

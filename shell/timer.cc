@@ -43,8 +43,8 @@ EventTimer::EventTimer(const int clock,
   // minimize the time spent holding it.
   m_timerfd = timerfd_create(clock, TFD_CLOEXEC | TFD_NONBLOCK);
   if (m_timerfd == -1) {
-    const auto msg = fmt::format("EventTimer: timerfd_create failed: {}",
-                                 strerror(errno));
+    const auto msg =
+        fmt::format("EventTimer: timerfd_create failed: {}", strerror(errno));
     spdlog::critical(msg);
     // throw instead of exit(): exit() bypasses destructors for all
     // already-constructed members (m_callback, m_callback_data).
@@ -63,9 +63,9 @@ EventTimer::EventTimer(const int clock,
       ev_fd = epoll_create1(EPOLL_CLOEXEC);
       if (ev_fd < 0) {
         if (errno != EINVAL) {
-          const auto msg = fmt::format(
-              "EventTimer: epoll_create1(EPOLL_CLOEXEC) failed: {}",
-              strerror(errno));
+          const auto msg =
+              fmt::format("EventTimer: epoll_create1(EPOLL_CLOEXEC) failed: {}",
+                          strerror(errno));
           // throw instead of exit(): exit() here fires while holding s_mutex,
           // permanently deadlocking any subsequent EventTimer construction.
           throw std::runtime_error(msg);

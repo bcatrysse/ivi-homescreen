@@ -67,8 +67,7 @@ void Watchdog::start() {
 #endif
         break;
       }
-      std::this_thread::sleep_for(
-          std::chrono::milliseconds(kDefaultSleepTime));
+      std::this_thread::sleep_for(std::chrono::milliseconds(kDefaultSleepTime));
     }
   });
   pet();  // reset the watchdog deadline to now + interval at the start
@@ -82,8 +81,7 @@ void Watchdog::stop() {
 }
 
 void Watchdog::pet() {
-  const auto new_deadline =
-      std::chrono::steady_clock::now() + interval_;
+  const auto new_deadline = std::chrono::steady_clock::now() + interval_;
   // Store with release ordering so the watchdog thread's acquire load on
   // deadline_ns_ is guaranteed to observe this updated value.
   deadline_ns_.store(

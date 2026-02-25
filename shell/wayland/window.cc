@@ -132,9 +132,8 @@ WaylandWindow::WaylandWindow(const size_t index,
       // allowing the constructor to return with no AGL shell role set on the
       // surface — the compositor then behaves unpredictably.  The exception
       // unwinds the stack cleanly in all build configurations.
-      const std::string msg =
-          "WaylandWindow: invalid surface role type: " +
-          std::to_string(static_cast<int>(m_type));
+      const std::string msg = "WaylandWindow: invalid surface role type: " +
+                              std::to_string(static_cast<int>(m_type));
       spdlog::critical(msg);
       throw std::logic_error(msg);
     }
@@ -156,9 +155,9 @@ WaylandWindow::WaylandWindow(const size_t index,
   //    rather than hanging the process at startup.
   if (m_wait_for_configure) {
     using clock = std::chrono::steady_clock;
-    using ms    = std::chrono::milliseconds;
+    using ms = std::chrono::milliseconds;
 
-    constexpr int     kPollTimeoutMs       = 100;
+    constexpr int kPollTimeoutMs = 100;
     constexpr int64_t kConfigureDeadlineMs = 5000;
 
     const auto deadline = clock::now() + ms(kConfigureDeadlineMs);
@@ -183,8 +182,10 @@ WaylandWindow::WaylandWindow(const size_t index,
 
       // Flush outgoing requests before blocking in poll.
       if (wl_display_flush(wl_dpy) < 0 && errno != EAGAIN) {
-        spdlog::error("({}) WaylandWindow: wl_display_flush error while "
-                      "waiting for configure: {}", m_index, strerror(errno));
+        spdlog::error(
+            "({}) WaylandWindow: wl_display_flush error while "
+            "waiting for configure: {}",
+            m_index, strerror(errno));
         wl_display_cancel_read(wl_dpy);
         break;
       }
@@ -211,8 +212,10 @@ WaylandWindow::WaylandWindow(const size_t index,
           wl_display_cancel_read(wl_dpy);
           continue;
         }
-        spdlog::error("({}) WaylandWindow: poll error while waiting for "
-                      "configure: {}", m_index, strerror(errno));
+        spdlog::error(
+            "({}) WaylandWindow: poll error while waiting for "
+            "configure: {}",
+            m_index, strerror(errno));
         wl_display_cancel_read(wl_dpy);
         break;
       }
@@ -220,10 +223,12 @@ WaylandWindow::WaylandWindow(const size_t index,
       if (ready == 0) {
         // Timed out — no compositor data yet.
         wl_display_cancel_read(wl_dpy);
-        const auto remaining = std::chrono::duration_cast<ms>(
-            deadline - clock::now()).count();
-        SPDLOG_TRACE("({}) WaylandWindow: waiting for xdg configure, "
-                     "{}ms remaining", m_index, remaining);
+        const auto remaining =
+            std::chrono::duration_cast<ms>(deadline - clock::now()).count();
+        SPDLOG_TRACE(
+            "({}) WaylandWindow: waiting for xdg configure, "
+            "{}ms remaining",
+            m_index, remaining);
         continue;
       }
 

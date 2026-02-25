@@ -16,10 +16,10 @@
 
 #pragma once
 
+#include <pthread.h>
 #include <atomic>
 #include <future>
 #include <memory>
-#include <pthread.h>
 
 #include "asio/executor_work_guard.hpp"
 #include "asio/io_context.hpp"

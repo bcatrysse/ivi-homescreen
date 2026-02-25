@@ -16,9 +16,9 @@
 
 #include "egl.h"
 
-#include <stdexcept>
 #include <cstring>
 #include <sstream>
+#include <stdexcept>
 
 #include <GLES2/gl2.h>
 
@@ -32,16 +32,14 @@ Egl::Egl(void* native_display, const int buffer_size, const bool debug)
   // EGL_BAD_DISPLAY silently.  The exception propagates cleanly in all
   // build configurations and includes the EGL error code for diagnosis.
   if (m_dpy == EGL_NO_DISPLAY) {
-    throw std::logic_error(
-        fmt::format("Egl: eglGetDisplay failed — EGL error 0x{:x}",
-                    eglGetError()));
+    throw std::logic_error(fmt::format(
+        "Egl: eglGetDisplay failed — EGL error 0x{:x}", eglGetError()));
   }
 
   EGLBoolean ret = eglInitialize(m_dpy, &m_major, &m_minor);
   if (ret != EGL_TRUE) {
-    throw std::logic_error(
-        fmt::format("Egl: eglInitialize failed — EGL error 0x{:x}",
-                    eglGetError()));
+    throw std::logic_error(fmt::format(
+        "Egl: eglInitialize failed — EGL error 0x{:x}", eglGetError()));
   }
   SPDLOG_DEBUG("EGL {}.{}", m_major, m_minor);
 
@@ -49,7 +47,8 @@ Egl::Egl(void* native_display, const int buffer_size, const bool debug)
   if (ret != EGL_TRUE) {
     throw std::logic_error(
         fmt::format("Egl: eglBindAPI(EGL_OPENGL_ES_API) failed — "
-                    "EGL error 0x{:x}", eglGetError()));
+                    "EGL error 0x{:x}",
+                    eglGetError()));
   }
 
   if (debug) {
@@ -216,8 +215,8 @@ bool Egl::MakeCurrent() const {
 bool Egl::ClearCurrent() const {
   SPDLOG_TRACE("+ClearCurrent(), thread_id=0x{:x}", pthread_self());
   if (eglGetCurrentContext() != EGL_NO_CONTEXT) {
-    if (eglMakeCurrent(m_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE,
-                       EGL_NO_CONTEXT) != EGL_TRUE) {
+    if (eglMakeCurrent(m_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT) !=
+        EGL_TRUE) {
       spdlog::error("ClearCurrent: eglMakeCurrent failed: 0x{:x}",
                     eglGetError());
       return false;
@@ -827,8 +826,9 @@ void Egl::EGL_KHR_debug_init(const char* extensions) {
     // a missing proc despite EGL_KHR_debug being advertised is a driver bug;
     // log a warning and skip rather than crashing.
     if (!pfDebugMessageControl) {
-      spdlog::warn("EGL_KHR_debug_init: eglGetProcAddress returned null for "
-                   "eglDebugMessageControlKHR — EGL debug messaging disabled");
+      spdlog::warn(
+          "EGL_KHR_debug_init: eglGetProcAddress returned null for "
+          "eglDebugMessageControlKHR — EGL debug messaging disabled");
       return;
     }
 

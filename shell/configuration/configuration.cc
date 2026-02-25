@@ -116,8 +116,8 @@ void Configuration::get_toml_config(const char* config_toml_path,
     //  3. Unit tests or alternative call-sites can handle the error without
     //     the process being unconditionally killed.
     throw std::runtime_error(
-        std::string("TOML parse error in '") + config_toml_path + "': " +
-        std::string(err.description()) + " (line " +
+        std::string("TOML parse error in '") + config_toml_path +
+        "': " + std::string(err.description()) + " (line " +
         std::to_string(err.source().begin.line) + ", column " +
         std::to_string(err.source().begin.column) + ")");
   }
@@ -473,7 +473,6 @@ std::vector<Configuration::Config> Configuration::ParseArgcArgv(
       }
     }
   }
-
 
   for (auto const& c : configs) {
     PrintConfig(c);
