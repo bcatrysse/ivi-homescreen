@@ -159,7 +159,7 @@ void WaylandVulkanBackend::createInstance() {
 
   if (!surfaceSupported_ || !waylandSurfaceSupported_) {
     throw std::runtime_error(
-        "WaylandVulkanBackend: Vulkan driver does not support the minimum "
+        "Vulkan driver does not support the minimum "
         "required extensions (VK_KHR_surface + VK_KHR_wayland_surface)");
   }
 
@@ -428,7 +428,7 @@ void WaylandVulkanBackend::findPhysicalDevice() {
 
   if (physical_device_ == nullptr) {
     throw std::runtime_error(
-        "WaylandVulkanBackend: no compatible Vulkan physical device found — "
+        "No compatible Vulkan physical device found — "
         "requires a device supporting graphics, present, and VK_KHR_swapchain");
   }
 }
@@ -905,7 +905,7 @@ void WaylandVulkanBackend::CreateSurface(size_t /* index */,
 
   if (!InitializeSwapChain()) {
     throw std::runtime_error(
-        "WaylandVulkanBackend: swap chain initialisation failed — "
+        "Swap Chain initialisation failed — "
         "check surface format support and display dimensions");
   }
 }

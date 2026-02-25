@@ -66,7 +66,6 @@ EventTimer::EventTimer(const int clock,
           const auto msg = fmt::format(
               "EventTimer: epoll_create1(EPOLL_CLOEXEC) failed: {}",
               strerror(errno));
-          spdlog::critical(msg);
           // throw instead of exit(): exit() here fires while holding s_mutex,
           // permanently deadlocking any subsequent EventTimer construction.
           throw std::runtime_error(msg);
@@ -76,7 +75,6 @@ EventTimer::EventTimer(const int clock,
           if (ev_fd < 0) {
             const auto msg = fmt::format(
                 "EventTimer: epoll_create(1) failed: {}", strerror(errno));
-            spdlog::critical(msg);
             throw std::runtime_error(msg);
           }
         }
@@ -231,7 +229,6 @@ void EventTimer::_arm(const int fd, itimerspec const* timerspec) {
   if (timerfd_settime(fd, 0, timerspec, nullptr) < 0) {
     const auto msg = fmt::format("EventTimer::_arm: timerfd_settime failed: {}",
                                  strerror(errno));
-    spdlog::critical(msg);
     // throw instead of exit(): lets the caller (arm/disarm) propagate the
     // failure up the stack rather than terminating without running destructors.
     throw std::runtime_error(msg);

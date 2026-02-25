@@ -76,21 +76,30 @@ int main(const int argc, char** argv) {
     throw std::invalid_argument("configs must not be empty");
   }
 
-  const App app(configs);
+  int result = EXIT_SUCCESS;
+  try {
+    const App app(configs);
 
-  std::signal(SIGINT, SignalHandler);
-  std::signal(SIGTERM, SignalHandler);
+    std::signal(SIGINT, SignalHandler);
+    std::signal(SIGTERM, SignalHandler);
 
-  // run the application
-  int ret = 0;
-  while (running.load(std::memory_order_acquire) && ret != -1) {
-    ret = app.Loop();
-  }
+    // run the application
+    int ret = 0;
+    while (running.load(std::memory_order_acquire) && ret != -1) {
+      ret = app.Loop();
+    }
 
-  // Log the shutdown reason here, in the safe main-thread context, rather
-  // than from the signal handler where spdlog is not async-signal-safe.
-  if (!running.load(std::memory_order_relaxed)) {
-    spdlog::info("Signal received — shutting down cleanly");
+    // Log the shutdown reason here, in the safe main-thread context, rather
+    // than from the signal handler where spdlog is not async-signal-safe.
+    if (!running.load(std::memory_order_relaxed)) {
+      spdlog::info("Signal received — shutting down cleanly");
+    }
+  } catch (const std::exception& e) {
+    spdlog::critical("{}", e.what());
+    result = EXIT_FAILURE;
+  } catch (...) {
+    spdlog::critical("Fatal error: unknown exception");
+    result = EXIT_FAILURE;
   }
 
   gLogger.reset();
@@ -99,5 +108,5 @@ int main(const int argc, char** argv) {
   (void)crash_handler.release();
 #endif
 
-  return EXIT_SUCCESS;
+  return result;
 }

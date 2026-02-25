@@ -93,7 +93,6 @@ Engine::Engine(FlutterView* view,
                                  "at {}: {}", m_index,
                                  engine_file_path.string(),
                                  dl_err ? dl_err : "unknown error");
-    spdlog::critical(msg);
     throw std::runtime_error(msg);
   }
 

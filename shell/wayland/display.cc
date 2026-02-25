@@ -60,11 +60,8 @@ Display::Display(const bool enable_cursor,
 
   m_display = wl_display_connect(nullptr);
   if (m_display == nullptr) {
-    const auto msg = fmt::format("Display: wl_display_connect failed: {}",
+    const auto msg = fmt::format("wl_display_connect failed: {}",
                                  strerror(errno));
-    spdlog::critical(msg);
-    // throw instead of exit(): exit() is called from the Display constructor,
-    // bypassing destructors for all already-constructed members.
     throw std::runtime_error(msg);
   }
 
@@ -81,7 +78,7 @@ Display::Display(const bool enable_cursor,
     }
     if (!m_agl.bound_ok) {
       throw std::runtime_error(
-          "Display: agl_shell extension already in use by another shell "
+          "agl_shell extension already in use by another shell "
           "client — only one shell client may bind agl_shell at a time");
     }
   }
