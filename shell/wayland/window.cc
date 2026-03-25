@@ -89,6 +89,13 @@ WaylandWindow::WaylandWindow(const size_t index,
 
     m_wait_for_configure = true;
   }
+#elif ENABLE_SIMPLE_SHELL_CLIENT
+  {
+    // Simple shell surfaces are managed by the compositor.
+    // The surface is ready after creation and commit.
+    m_wait_for_configure = false;
+    spdlog::debug("({}) Using simple-shell surface", m_index);
+  }
 #endif
 
   wl_surface_commit(m_base_surface);

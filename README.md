@@ -289,6 +289,8 @@ All other parameters get assigned using the following ordering:
 
 `ENABLE_IVI_SHELL_CLIENT` - Enable ivi-shell Client. Defaults to OFF
 
+`ENABLE_SIMPLE_SHELL_CLIENT` - Enable Simple Shell Client (for RDK). Defaults to OFF
+
 `ENABLE_DRM_LEASE_CLIENT` - Enable drm lease Client. Defaults to OFF
 
 `ENABLE_LTO` - Enable Link Time Optimization. Defaults to OFF

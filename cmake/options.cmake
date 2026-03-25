@@ -41,6 +41,11 @@ endif ()
 set(THIRD_PARTY_DIR ${CMAKE_SOURCE_DIR}/third_party)
 
 #
+# Shell Client
+#
+option(ENABLE_SIMPLE_SHELL_CLIENT "Enable Simple Shell Client" OFF)
+
+#
 # LTO
 #
 option(ENABLE_LTO "Enable Link Time optimization" OFF)
