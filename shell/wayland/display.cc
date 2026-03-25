@@ -108,6 +108,11 @@ Display::~Display() {
     ivi_wm_destroy(m_ivi_shell.ivi_wm);
 #endif
 
+#if ENABLE_SIMPLE_SHELL_CLIENT
+  if (m_simple_shell)
+    wl_simple_shell_destroy(m_simple_shell);
+#endif
+
   if (m_subcompositor)
     wl_subcompositor_destroy(m_subcompositor);
 
@@ -261,6 +266,13 @@ void Display::registry_handle_global(void* data,
         wl_registry_bind(registry, name, &ivi_wm_interface, 1));
     ivi_wm_add_listener(d->m_ivi_shell.ivi_wm, &ivi_wm_listener, data);
     spdlog::debug("Wayland: ivi_wm version: {}", version);
+  }
+#endif
+#if ENABLE_SIMPLE_SHELL_CLIENT
+  else if (strcmp(interface, wl_simple_shell_interface.name) == 0) {
+    d->m_simple_shell = static_cast<struct wl_simple_shell*>(
+        wl_registry_bind(registry, name, &wl_simple_shell_interface, 1));
+    spdlog::debug("Wayland: wl_simple_shell version: {}", version);
   }
 #endif
 }

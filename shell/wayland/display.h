@@ -119,6 +119,12 @@ class Display {
   }
 #endif
 
+#if ENABLE_SIMPLE_SHELL_CLIENT
+  [[nodiscard]] wl_simple_shell* GetSimpleShell() const {
+    return m_simple_shell;
+  }
+#endif
+
   /**
    * @brief Get shared memory
    * @return wl_shm*
@@ -387,6 +393,10 @@ class Display {
     struct ivi_application* application = nullptr;
     struct ivi_wm* ivi_wm = nullptr;
   } m_ivi_shell;
+
+#if ENABLE_SIMPLE_SHELL_CLIENT
+  wl_simple_shell* m_simple_shell{};
+#endif
 
   bool m_enable_cursor;
   struct wl_surface* m_cursor_surface{};
