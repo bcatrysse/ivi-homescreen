@@ -108,6 +108,11 @@ Display::~Display() {
     ivi_wm_destroy(m_ivi_shell.ivi_wm);
 #endif
 
+#if ENABLE_SIMPLE_SHELL_CLIENT
+  if (m_simple_shell)
+    wl_simple_shell_destroy(m_simple_shell);
+#endif
+
   if (m_subcompositor)
     wl_subcompositor_destroy(m_subcompositor);
 
@@ -263,6 +268,16 @@ void Display::registry_handle_global(void* data,
     spdlog::debug("Wayland: ivi_wm version: {}", version);
   }
 #endif
+#if ENABLE_SIMPLE_SHELL_CLIENT
+  else if (strcmp(interface, wl_simple_shell_interface.name) == 0) {
+    d->m_simple_shell = static_cast<struct wl_simple_shell*>(
+        wl_registry_bind(registry, name, &wl_simple_shell_interface, 1));
+    spdlog::debug("Wayland: wl_simple_shell version: {}", version);
+
+    wl_simple_shell_add_listener(d->m_simple_shell, &simple_shell_listener, data);
+  }
+#endif
+
 }
 
 void Display::registry_handle_global_remove(void* /* data */,
@@ -1365,6 +1380,87 @@ const struct ivi_wm_listener Display::ivi_wm_listener = {
     .surface_size = ivi_wm_surface_size,
     .surface_stats = ivi_wm_surface_stats,
     .layer_surface_added = ivi_wm_layer_surface_added,
+};
+#endif
+
+#if ENABLE_SIMPLE_SHELL_CLIENT
+void Display::on_simple_shell_surface_id(void* data,
+                                         struct wl_simple_shell* shell,
+                                         struct wl_surface* surface,
+                                         uint32_t surface_id) {
+  (void)data; 
+  (void)shell;
+  SPDLOG_DEBUG("on_simple_shell_surface_id: receiving the shell_surface_id={} for my created window with wayland surface pointer={}", surface_id, surface);
+}
+
+ void Display::on_simple_shell_surface_created(void* data,
+                                      struct wl_simple_shell* shell,
+                                      uint32_t surface_id,
+                                      const char* name) {
+  (void)data;
+  (void)shell;
+  SPDLOG_DEBUG("on_simple_shell_created: shell_surface_id={}, name='{}'", surface_id, name ? name : "null");
+  }
+
+void Display::on_simple_shell_surface_destroyed(void* data,
+                                                struct wl_simple_shell* shell,
+                                                uint32_t surface_id,
+                                                const char* name) {
+  (void)data;
+  (void)shell;
+  SPDLOG_DEBUG("on_simple_shell_surface_destroyed: shell_surface_id={}, name='{}'", surface_id, name ? name : "null");
+}
+
+void Display::on_simple_shell_surface_status(void* data,
+                                             struct wl_simple_shell* shell,
+                                             uint32_t surface_id,
+                                             const char* name,
+                                             uint32_t visible,
+                                             int32_t x,
+                                             int32_t y,
+                                             int32_t width,
+                                             int32_t height,
+                                             wl_fixed_t opacity,
+                                             wl_fixed_t zorder) {
+  (void)data;
+  (void)shell;
+  SPDLOG_DEBUG(
+    "on_simple_shell_surface_status: name='{}', shell_surface_id={}, visible={}, pos=({}, {}), size=({}, {}), opacity={}, zorder={}",
+    name ? name : "null",
+    surface_id,
+    visible,
+    x, y,
+    width, height,
+    wl_fixed_to_double(opacity),
+    wl_fixed_to_double(zorder)
+  );
+}
+
+void Display::on_simple_shell_get_surfaces_done(void* data,
+                                   struct wl_simple_shell* shell) {
+  (void)data;
+  (void)shell;
+  SPDLOG_DEBUG("on_simple_shell_surfaces_done : marks end of surface_status events after get_surfaces request"); 
+  }
+
+void Display::on_simple_shell_popup_details(void* data,
+                                            struct wl_simple_shell* shell,
+                                            uint32_t surface_id,
+                                            uint32_t parent_surface_id,
+					    int32_t popup) {
+  (void)data;
+  (void)shell;
+  SPDLOG_DEBUG("on_simple_shell_popup_details: requested for shell_surface_id={}, popup result is={}, shell parent_surface_id={}", surface_id, popup, parent_surface_id); 
+}
+
+
+const struct wl_simple_shell_listener Display::simple_shell_listener = {
+    .surface_id = on_simple_shell_surface_id,
+    .surface_created = on_simple_shell_surface_created,
+    .surface_destroyed = on_simple_shell_surface_destroyed,
+    .surface_status = on_simple_shell_surface_status,
+    .get_surfaces_done = on_simple_shell_get_surfaces_done,
+    .popup_details = on_simple_shell_popup_details,
 };
 #endif
 

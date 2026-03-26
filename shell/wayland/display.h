@@ -119,6 +119,22 @@ class Display {
   }
 #endif
 
+
+  /**
+   * @brief Get simple_shell wayland interface 
+   * @return wl_simple_shell*
+   * @retval Pointer to RDK Simple Shell interface
+   * @relation
+   * simple-shell
+   */
+
+#if ENABLE_SIMPLE_SHELL_CLIENT
+  [[nodiscard]] wl_simple_shell* GetSimpleShell() const {
+    return m_simple_shell;
+  }
+#endif
+
+
   /**
    * @brief Get shared memory
    * @return wl_shm*
@@ -387,6 +403,10 @@ class Display {
     struct ivi_application* application = nullptr;
     struct ivi_wm* ivi_wm = nullptr;
   } m_ivi_shell;
+
+#if ENABLE_SIMPLE_SHELL_CLIENT
+  struct wl_simple_shell* m_simple_shell{};
+#endif
 
   bool m_enable_cursor;
   struct wl_surface* m_cursor_surface{};
@@ -1346,4 +1366,115 @@ class Display {
                                          uint32_t surface_id);
 
   static const struct ivi_wm_listener ivi_wm_listener;
+
+#if ENABLE_SIMPLE_SHELL_CLIENT
+
+  /**
+   * @brief handler for surface_id event. Sent by compositor to the simple-shell listener of the wayland-client that created the new wl_surface.
+   * @brief The surface_id is the identifier of the window to use in the simpleshell protocol to control that window
+   * @param[in,out] data Data of type Display
+   * @param[in] wl_simple_shell shell interface through which we receive this event 
+   * @param[in] wl_surface the wayland wl_surface of the associated created window
+   * @param[in] surface_id assigned by compositor of the associated window for use in Windowcontrol through simple-shell-client
+   * @return void
+   * @relation
+   * simple-shell
+   */
+  static void on_simple_shell_surface_id(void* data,
+                                       struct wl_simple_shell* shell,
+                                       struct wl_surface* surface,
+                                       uint32_t surface_id);
+ 
+  /**
+   * @brief handler for surface_created event that is broadcasted by compositor to all simple_shell listeners upon new surface creation
+   * @param[in,out] data Data of type Display
+   * @param[in] wl_surface the wayland wl_surface that was created and is associated with this window
+   * @param[in] wl_simple_shell shell interface through which we receive this event
+   * @param[in] surface_id of the associated window for use in Windowcontrol through simple-shell
+   * @param[in] name of the associated window as known by compositor
+   * @return void
+   * @relation
+   * simple-shell
+   */
+  static void on_simple_shell_surface_created(void* data,
+                                            struct wl_simple_shell* shell,
+                                            uint32_t surface_id,
+                                            const char* name);
+
+  /**
+   * @brief handler for surface_destroyed event that is broadcasted by compositor to all simple_shell listeners upon new surface destruction
+   * @param[in,out] data Data of type Display
+   * @param[in] wl_simple_shell shell interface through which we receive this event
+   * @param[in] surface_id of the associated window that is destroyed, surface_id for use in Windowcontrol through simple-shell
+   * @return void
+   * @relation
+   * simple-shell
+   */
+  static void on_simple_shell_surface_destroyed(void* data,
+                                                struct wl_simple_shell* shell,
+                                                uint32_t surface_id,
+                                                const char* name);
+  
+  /**
+   * @brief handler for the surface_status event that is sent in response to a simple_shell get_status request
+   * @brief is sent to the listener registered by the simple_shell client issuing the request
+   * @param[in,out] data Data of type Display
+   * @param[in] wl_simple_shell shell interface through which we receive this event
+   * @param[in] surface_id of the associated window, surface_id for use in Windowcontrol through simple-shell
+   * @param[in] name name of the window as known by compositor
+   * @param[in] visible If value=1 it means the window is visible. To double check!
+   * @param[in] x x position of the window
+   * @param[in] y y position of the window
+   * @param[in] width width of the window
+   * @param[in] height height of the window
+   * @param[in] opacity of window wl_fixed_t type, values clamped to [0.0, 1.0] with 0.0 being fully transparent(so invisible) and 1.0 fully opaque. To double check!
+   * @param[in] zorder of window wl_fixed_t type, values also clamped to ?[0.0, 1.0] to with 0.0 being the furthest behind, at the very back of the stacking order
+   * @return void
+   * @relation
+   * simple-shell
+   */
+  static void on_simple_shell_surface_status(void* data,
+                                             struct wl_simple_shell* shell,
+                                             uint32_t surface_id,
+                                             const char* name,
+                                             uint32_t visible,
+                                             int32_t x,
+                                             int32_t y,
+                                             int32_t width,
+                                             int32_t height,
+                                             wl_fixed_t opacity,
+                                             wl_fixed_t zorder);
+
+ /**
+   * @brief handler for the get_surface_dones event that is sent to mark end of surface_status events after a simple_shell get_surfaces request
+   * @param[in,out] data Data of type Display
+   * @param[in] wl_simple_shell shell interface through which we receive this event
+   * @return void
+   * @relation
+   * simple-shell
+ */
+  static void on_simple_shell_get_surfaces_done(void* data, 
+                                            struct wl_simple_shell* shell);
+
+  /**
+   * @brief handler for popup_details event that is sent on response of is_surface_popup request for specific window
+   * @param[in,out] data Data of type Display
+   * @param[in] wl_simple_shell shell interface through which we receive this event
+   * @param[in] surface_id of the associated window for which is_surface_popup request was made
+   * @param[in] surface_id of the parent window, if windos is no popup window the value will be 0
+   * @param[in] value 1 or 0 for whether surface is a popup surface or not
+   * @return void
+   * @relation
+   * simple-shell
+ */
+  static void on_simple_shell_popup_details(void* data,
+		                            struct wl_simple_shell* shell,
+					    uint32_t surface_id,
+					    uint32_t parent_surface_id,
+					    int32_t popup);
+
+
+  static const struct wl_simple_shell_listener simple_shell_listener;
+#endif
+
 };

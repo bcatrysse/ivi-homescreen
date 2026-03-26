@@ -71,7 +71,9 @@ WaylandWindow::WaylandWindow(const size_t index,
 
     m_wait_for_configure = false;
   }
-#elif defined(ENABLE_XDG_CLIENT)
+#endif
+  
+#if ENABLE_XDG_CLIENT
   {
     m_xdg_surface =
         xdg_wm_base_get_xdg_surface(m_display->GetXdgWmBase(), m_base_surface);
@@ -88,6 +90,16 @@ WaylandWindow::WaylandWindow(const size_t index,
       xdg_toplevel_set_fullscreen(m_xdg_toplevel, m_wl_output);
 
     m_wait_for_configure = true;
+  }
+#endif
+
+#if ENABLE_SIMPLE_SHELL_CLIENT
+  {
+    // Simple shell surfaces are managed by the compositor.
+    // Think the surface is ready after creation and commit.
+    // not adding a wl_simple_shell_listener yet, check/test first, can add later
+    m_wait_for_configure = false;
+    spdlog::info("({}) INFO Using simple-shell surface", m_index);
   }
 #endif
 
