@@ -95,9 +95,8 @@ WaylandWindow::WaylandWindow(const size_t index,
 
 #if ENABLE_SIMPLE_SHELL_CLIENT
   {
-    // Simple shell surfaces are managed by the compositor.
-    // Think the surface is ready after creation and commit.
-    // not adding a wl_simple_shell_listener yet, check/test first, can add later
+    // not absolutely requiring additional window setup through simple-shell, default setup by compositor should be enough.
+    // The surface is ready after creation and commit.
     m_wait_for_configure = false;
     spdlog::info("({}) INFO Using simple-shell surface", m_index);
   }
